@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Гравитация">
+    <title>Гравитация - Московская область</title>
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%D0%93%D1%80%D0%B0%D0%B2%D0%B8%D1%82%D0%B0%D1%86%D0%B8%D1%8F%20-%20%D0%9C%D0%9E%22%2C%22short_name%22%3A%22%D0%93%D1%80%D0%B0%D0%B2%D0%B8%D1%82%D0%B0%D1%86%D0%B8%D1%8F%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23001a3b%22%2C%22theme_color%22%3A%22%23001a3b%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20192%20192'%3E%3Crect%20width='192'%20height='192'%20fill='%23001a3b'/%3E%3Ctext%20x='50%25'%20y='50%25'%20font-size='120'%20text-anchor='middle'%20dy='.3em'%20fill='%23ffffff'%3EG%3C/text%3E%3C/svg%3E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image/svg+xml%22%7D%5D%7D">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: linear-gradient(135deg, #001a3b 0%, #002b5c 100%); min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; color: white; overscroll-behavior-y: none; }
+        #app { width: 100%; max-width: 450px; min-height: 100vh; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); box-shadow: 0 0 40px rgba(0, 0, 0, 0.3); position: relative; overflow-x: hidden; display: flex; flex-direction: column; }
+        @keyframes floatIn { 0% { opacity: 0; transform: translateY(100px) scale(0.9); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(50px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes rotateGlow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .splash-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; text-align: center; position: relative; overflow: hidden; justify-content: flex-start; padding-top: 20vh; }
+        @media (max-height: 700px) { .splash-screen { padding-top: 12vh; } }
+        .gravity-text { font-family: 'Inter', sans-serif; font-size: 3rem; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #FFFFFF 0%, #D4E6FF 40%, #9AC2FF 100%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 8px 24px rgba(0, 100, 255, 0.35); margin-bottom: 12px; animation: floatIn 1.2s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; position: relative; }
+        .gravity-text::before { content: ''; position: absolute; top: -20px; left: -20px; right: -20px; bottom: -20px; background: radial-gradient(circle at center, rgba(154, 194, 255, 0.25) 0%, transparent 70%); animation: rotateGlow 12s linear infinite; z-index: -1; border-radius: 50%; }
+        .region-text { font-size: 1.6rem; font-weight: 500; letter-spacing: 1.5px; color: rgba(255, 255, 255, 0.9); border-bottom: 1.5px solid rgba(255, 255, 255, 0.3); padding-bottom: 12px; display: inline-block; opacity: 0; animation: slideUp 0.8s 0.5s forwards; }
+        .auth-buttons { display: flex; gap: 16px; justify-content: center; margin-top: 32px; opacity: 0; animation: slideUp 0.8s 0.8s forwards; width: 100%; max-width: 280px; }
+        .auth-btn { flex: 1; background: linear-gradient(45deg, #0072ff, #00c6ff); border: none; color: white; font-size: 1.2rem; font-weight: 600; padding: 14px 0; border-radius: 60px; box-shadow: 0 10px 25px rgba(0, 114, 255, 0.4); cursor: pointer; transition: transform 0.25s ease, box-shadow 0.25s ease; border: 1px solid rgba(255,255,255,0.25); }
+        .auth-btn:active { transform: scale(0.96); }
+        .community-stats { margin-top: auto; margin-bottom: 20px; font-size: 0.85rem; font-weight: normal; color: rgba(255, 255, 255, 0.7); background: rgba(0,0,0,0.2); padding: 8px 16px; border-radius: 30px; backdrop-filter: blur(8px); animation: slideUp 0.8s 1s forwards; opacity: 0; text-align: center; line-height: 1.4; width: 90%; max-width: 320px; }
+        
+        /* Увеличен padding-bottom для безопасной зоны на iPhone */
+        .main-content { flex: 1; display: none; flex-direction: column; padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+        .main-content.active { display: flex; animation: slideUp 0.5s forwards; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin: 16px 20px 10px 20px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .header h1 { font-size: 1.8rem; background: linear-gradient(135deg, #fff, #a8d0ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logout-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 15px; border-radius: 20px; font-size: 0.9rem; cursor: pointer; }
+        .top-nav { display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 6px; padding: 10px 12px; background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.1); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav button { flex: 1; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: rgba(255,255,255,0.1); border: none; color: white; padding: 8px 4px; border-radius: 24px; font-size: 0.7rem; font-weight: 500; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(4px); white-space: nowrap; text-align: center; min-width: 0; }
+        .top-nav button span:first-child { font-size: 1.3rem; }
+        .top-nav button.active { background: linear-gradient(45deg, #0072ff, #00c6ff); box-shadow: 0 2px 8px rgba(0,114,255,0.4); }
+        
+        /* Учет безопасной зоны на iOS для нижнего меню */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; max-width: 450px; margin: 0 auto; background: rgba(10, 25, 47, 0.95); backdrop-filter: blur(12px); display: flex; justify-content: space-around; align-items: center; padding: 8px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,0.15); z-index: 100; }
+        
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 0.7rem; font-weight: 500; cursor: pointer; transition: all 0.2s; padding: 6px 8px; border-radius: 30px; }
+        .nav-item span:first-child { font-size: 1.4rem; }
+        .nav-item.active { color: #00c6ff; background: rgba(0, 114, 255, 0.2); }
+        .tab-content { display: none; background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; backdrop-filter: blur(5px); margin: 10px 16px 0 16px; flex: 1; }
+        .tab-content.active { display: block; }
+        .search-container { margin-bottom: 20px; }
+        
+        /* Принудительный размер шрифта 16px предотвращает зум в iOS Safari */
+        .search-input, .form-group input, .form-group textarea, .form-group select, .dynamic-input { font-size: 16px !important; }
+        
+        .search-input { width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 40px; color: white; outline: none; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 0.9rem; color: rgba(255,255,255,0.8); }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 15px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 15px; color: white; }
+        .strength-item, .skill-item { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .dynamic-input { background: transparent; border: none; border-bottom: 1px dashed rgba(255,255,255,0.4); color: white; padding: 5px 0; width: 100%; outline: none; }
+        .add-btn { background: rgba(255,255,255,0.2); border: 1px dashed rgba(255,255,255,0.5); color: white; padding: 12px; border-radius: 15px; width: 100%; font-size: 1rem; cursor: pointer; margin-bottom: 10px; }
+        .checkbox-label { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; cursor: pointer; font-size: 0.95rem; line-height: 1.3; }
+        .checkbox-label input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 22px; height: 22px; background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; position: relative; transition: all 0.2s ease; flex-shrink: 0; margin: 0; }
+        .checkbox-label input[type="checkbox"]:checked { background: linear-gradient(45deg, #0072ff, #00c6ff); border-color: #00c6ff; }
+        .checkbox-label input[type="checkbox"]:checked::after { content: "✓"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 14px; font-weight: bold; }
+        .checkbox-label label { cursor: pointer; color: rgba(255,255,255,0.9); font-size: 0.95rem; line-height: 1.3; }
+        .save-btn { background: linear-gradient(45deg, #00c6ff, #0072ff); border: none; color: white; padding: 15px; border-radius: 30px; width: 100%; font-size: 1.2rem; font-weight: 600; cursor: pointer; margin-top: 20px; }
+        .directors-grid { display: flex; flex-direction: column; gap: 20px; }
+        .director-card { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(12px); border-radius: 28px; padding: 18px; border: 1px solid rgba(255,255,255,0.15); }
+        .card-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .avatar-img, .avatar-placeholder { width: 70px; height: 70px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 600; color: white; background: linear-gradient(135deg, #0072ff, #00c6ff); }
+        .avatar-img { background: none; object-fit: cover; }
+        .photo-preview { margin-top: 12px; text-align: center; }
+        .photo-preview img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3); }
+        .badge-mentor { background: #ffaa33; color: #1e2a3a; font-size: 0.7rem; padding: 2px 8px; border-radius: 30px; font-weight: bold; }
+        .info-section { margin: 12px 0; background: rgba(255,255,255,0.05); border-radius: 18px; padding: 12px; }
+        .info-section h4 { font-size: 0.85rem; color: #9ac2ff; margin-bottom: 8px; }
+        .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
+        .tag { background: rgba(0,114,255,0.3); border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; }
+        .contact-btn, .detail-btn { background: linear-gradient(45deg, #0072ff, #00c6ff); border: none; color: white; padding: 10px; border-radius: 40px; width: 100%; margin-top: 12px; cursor: pointer; }
+        .detail-btn { background: rgba(255,255,255,0.2); }
+        .event-card { background: rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #0072ff; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(12px); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 20px; }
+        .modal-content { max-width: 400px; width: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(16px); border-radius: 40px; border: 1px solid rgba(255, 255, 255, 0.2); padding: 24px; color: white; max-height: 90vh; overflow-y: auto; }
+        .close-modal { float: right; background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; }
+        .install-prompt { background: rgba(0, 26, 59, 0.95); backdrop-filter: blur(10px); padding: 15px; border-radius: 15px; margin: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid rgba(0,198,255,0.3); }
+        .install-prompt button { background: #00c6ff; color: #001a3b; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        .new-section-card { background: rgba(255,255,255,0.08); border-radius: 24px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #00c6ff; }
+        .new-section-card h3 { margin-bottom: 12px; color: #00c6ff; }
+        .rating-badge { display: inline-block; background: rgba(0,198,255,0.2); border-radius: 30px; padding: 4px 12px; font-size: 0.75rem; margin-top: 8px; border: 1px solid rgba(0,198,255,0.5); }
+        .activity-item { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.8rem; }
+        .admin-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .admin-table th, .admin-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.2); text-align: left; }
+        /* Дополнительные стили для модального окна (детальная карточка) */
+        .strength-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 12px; }
+        .strength-name { font-weight: 500; min-width: 140px; }
+        .strength-bar { flex: 1; height: 8px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; }
+        .strength-fill { height: 100%; background: linear-gradient(90deg, #00c6ff, #0072ff); border-radius: 10px; width: 0%; }
+        .strength-value { font-size: 0.8rem; font-weight: 600; min-width: 36px; text-align: right; color: #aad0ff; }
+        .skill-item-compact { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed rgba(255,255,255,0.2); padding: 8px 0; }
+        .skill-level { background: rgba(0,114,255,0.5); padding: 2px 10px; border-radius: 30px; font-size: 0.7rem; font-weight: 600; }
+        .interests-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+        .interest-badge { background: rgba(255,255,240,0.12); border-radius: 30px; padding: 5px 14px; font-size: 0.8rem; }
+        .detail-tag { background: rgba(0, 114, 255, 0.35); border-radius: 40px; padding: 6px 16px; font-size: 0.8rem; font-weight: 500; display: inline-block; margin-right: 8px; margin-bottom: 8px; }
+        @media (max-width: 450px) { .gravity-text { font-size: 2.5rem; } .region-text { font-size: 1.3rem; } .top-nav button { padding: 6px 2px; font-size: 0.65rem; } .top-nav button span:first-child { font-size: 1.1rem; } .nav-item span:first-child { font-size: 1.2rem; } .nav-item { font-size: 0.6rem; padding: 4px 6px; } .avatar-img, .avatar-placeholder { width: 55px; height: 55px; font-size: 22px; } }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="splash-screen" id="splashScreen">
+        <div><div class="gravity-text">Гравитация</div><div class="region-text">Московская область</div></div>
+        <div class="auth-buttons"><button class="auth-btn" id="loginBtn">Вход</button><button class="auth-btn" id="registerBtn">Регистрация</button></div>
+        <div class="install-prompt" id="installPrompt" style="display: none;"><span>📱 Установить как приложение</span><button id="installBtn">Установить</button></div>
+        <div class="community-stats">Гравитация – профессиональное сообщество директоров нас: <span>287</span></div>
+    </div>
+    <div class="main-content" id="mainContent">
+        <div class="header"><h1>Гравитация</h1><button class="logout-btn" id="logoutBtn">Выйти</button></div>
+        <div class="top-nav" id="topNav">
+            <button data-tab="profile"><span>👤</span> <span>Профиль</span></button>
+            <button data-tab="school"><span>🏫</span> <span>Школа</span></button>
+            <button data-tab="events"><span>📅</span> <span>Мероприятия</span></button>
+            <button data-tab="directors"><span>🧑‍💼</span> <span>Директора</span></button>
+            <button data-tab="mentors"><span>🌟</span> <span>Наставники</span></button>
+        </div>
+        <div class="tab-content" id="profile"></div>
+        <div class="tab-content" id="school"></div>
+        <div class="tab-content" id="events"></div>
+        <div class="tab-content" id="directors"></div>
+        <div class="tab-content" id="mentors"></div>
+        <div class="bottom-nav" id="bottomNav">
+            <button class="nav-item" data-newtab="expert"><span>📊</span><span>Экспертное мнение</span></button>
+            <button class="nav-item" data-newtab="gl"><span>⭐</span><span>ГЛ</span></button>
+            <button class="nav-item" data-newtab="internship"><span>🎓</span><span>Стажировка</span></button>
+            <button class="nav-item" data-newtab="calendar"><span>📅</span><span>Календарь мероприятий</span></button>
+            <button class="nav-item admin-only" id="adminNavBtn" data-newtab="admin" style="display:none;"><span>👑</span><span>Админ</span></button>
+        </div>
+        <div class="tab-content" id="expert"></div>
+        <div class="tab-content" id="gl"></div>
+        <div class="tab-content" id="internship"></div>
+        <div class="tab-content" id="calendar"></div>
+        <div class="tab-content" id="admin"></div>
+    </div>
+</div>
+<script>
+    // ---------- PWA И УСТАНОВКА ----------
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const installPrompt = document.getElementById('installPrompt');
+        if (installPrompt) installPrompt.style.display = 'flex';
+    });
+
+    document.getElementById('installBtn')?.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                document.getElementById('installPrompt').style.display = 'none';
+            }
+            deferredPrompt = null;
+        }
+    });
+
+    // Регистрация простого Service Worker "на лету" для поддержки PWA (чтобы браузер разрешил установку)
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            self.addEventListener('install', (e) => self.skipWaiting());
+            self.addEventListener('activate', (e) => self.clients.claim());
+            self.addEventListener('fetch', (e) => {});
+        `;
+        const blob = new Blob([swCode], {type: 'application/javascript'});
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(err => console.log('SW setup failed:', err));
+    }
+
+    // ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
+    function escapeHtml(str) { return str?.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}) || ''; }
+    function showModal(title, contentHtml) {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `<div class="modal-content"><button class="close-modal">&times;</button><h2 style="margin-bottom: 20px;">${title}</h2>${contentHtml}</div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('.close-modal').onclick = () => overlay.remove();
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        return overlay;
+    }
+    function getCurrentUserEmail() { const cu = localStorage.getItem('currentUser'); return cu ? JSON.parse(cu).email : null; }
+    function isAdmin() { return getCurrentUserEmail() === 'admin@gravitacia.ru'; }
+    function getCurrentDirectorName() { const p = localStorage.getItem('directorProfile'); return p ? (JSON.parse(p).name || 'Директор') : 'Директор'; }
+    function getCurrentSchoolName() { const s = localStorage.getItem('schoolInfo'); return s ? (JSON.parse(s).name || 'Школа') : 'Школа'; }
+    
+    // ---------- СИСТЕМА РЕЙТИНГА ----------
+    function initRatingSystem() {
+        if (!localStorage.getItem('ratingsData')) localStorage.setItem('ratingsData', JSON.stringify({}));
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        if (!users.some(u => u.email === 'admin@gravitacia.ru')) users.push({ name: 'Администратор', email: 'admin@gravitacia.ru', phone: '', password: 'admin123' });
+        localStorage.setItem('users', JSON.stringify(users));
+        const ratings = JSON.parse(localStorage.getItem('ratingsData'));
+        users.forEach(user => { if (!ratings[user.email]) ratings[user.email] = { totalScore: 0, public: false, activities: [] }; });
+        localStorage.setItem('ratingsData', JSON.stringify(ratings));
+    }
+    function getRatingData(email) { const ratings = JSON.parse(localStorage.getItem('ratingsData') || '{}'); return ratings[email] || { totalScore: 0, public: false, activities: [] }; }
+    function saveRatingData(email, data) { const ratings = JSON.parse(localStorage.getItem('ratingsData') || '{}'); ratings[email] = data; localStorage.setItem('ratingsData', JSON.stringify(ratings)); }
+    function addRatingActivity(email, type, description, points) { if (!email) return; const data = getRatingData(email); data.totalScore += points; data.activities = data.activities || []; data.activities.unshift({ type, description, points, date: new Date().toLocaleString() }); if (data.activities.length > 20) data.activities.pop(); saveRatingData(email, data); return data.totalScore; }
+    function canViewRating(ownerEmail, viewerEmail) { if (viewerEmail === ownerEmail) return true; if (isAdmin()) return true; return getRatingData(ownerEmail).public === true; }
+    
+    // ---------- МЕРОПРИЯТИЯ ----------
+    let events = [];
+    function loadEventsFromStorage() { const stored = localStorage.getItem('events'); events = stored ? JSON.parse(stored) : []; }
+    function saveEventsToStorage() { localStorage.setItem('events', JSON.stringify(events)); }
+    function createEvent(title, date, description, maxParticipants, isSpeaker = false) {
+        const email = getCurrentUserEmail();
+        const event = { id: Date.now(), title, date, description, max: parseInt(maxParticipants) || 999, registrations: [], creator: getCurrentDirectorName(), creatorSchool: getCurrentSchoolName(), creatorEmail: email };
+        events.push(event);
+        saveEventsToStorage();
+        if (email) {
+            addRatingActivity(email, 'create_event', `Создал мероприятие "${title}"`, 10);
+            if (isSpeaker) addRatingActivity(email, 'speaker', `Выступил спикером на "${title}"`, 15);
+        }
+        renderEvents();
+    }
+    window.registerForEvent = function(eventId) {
+        const ev = events.find(e => e.id == eventId);
+        if (!ev) return;
+        if (ev.registrations.length >= ev.max) { alert('Максимум участников'); return; }
+        const employeeName = prompt('ФИО сотрудника:'); if (!employeeName) return;
+        const position = prompt('Должность:'); if (!position) return;
+        const school = prompt('От какой школы?', getCurrentSchoolName()); if (!school) return;
+        ev.registrations.push({ employeeName, position, schoolName: school, registeredAt: new Date().toLocaleString() });
+        saveEventsToStorage();
+        renderEvents();
+        const email = getCurrentUserEmail();
+        if (email) addRatingActivity(email, 'participation', `Зарегистрировал ${employeeName} на "${ev.title}"`, 2);
+        alert(`Сотрудник ${employeeName} записан`);
+    };
+    window.deleteEvent = function(eventId) {
+        const ev = events.find(e => e.id == eventId);
+        if (!ev || ev.creator !== getCurrentDirectorName()) { alert('Удалять можно только свои мероприятия'); return; }
+        if (confirm('Удалить?')) { events = events.filter(e => e.id != eventId); saveEventsToStorage(); renderEvents(); }
+    };
+    function renderEvents() {
+        const container = document.getElementById('eventsList');
+        if (!container) return;
+        if (events.length === 0) { container.innerHTML = '<div style="text-align:center; padding:20px;">Нет мероприятий. Создайте первое!</div>'; return; }
+        let html = '';
+        events.forEach(ev => {
+            const isCreator = (ev.creator === getCurrentDirectorName());
+            html += `<div class="event-card"><h3>${escapeHtml(ev.title)}</h3><div class="date">📅 ${escapeHtml(ev.date)}</div><p>${escapeHtml(ev.description)}</p><div>👥 Записалось: ${ev.registrations.length} / ${ev.max}</div><div>👤 Организатор: ${escapeHtml(ev.creator)} (${escapeHtml(ev.creatorSchool)})</div>`;
+            if (ev.registrations.length) html += `<div><strong>Записавшиеся:</strong><ul>${ev.registrations.map(r => `<li>${escapeHtml(r.employeeName)} (${escapeHtml(r.position)}) — ${escapeHtml(r.schoolName)}</li>`).join('')}</ul></div>`;
+            html += `<div style="margin-top:12px;">${!isCreator ? `<button onclick="registerForEvent(${ev.id})">📝 Записать сотрудника</button>` : ''}${isCreator ? `<button onclick="deleteEvent(${ev.id})" style="background:#ff4757;">🗑 Удалить</button>` : ''}</div></div>`;
+        });
+        container.innerHTML = html;
+    }
+    
+    // ---------- РАСШИРЕННЫЕ ДАННЫЕ ДИРЕКТОРОВ ----------
+    const demoDirectors = [
+        {
+            name: "Елена Викторовна Громова",
+            email: "elena@school11.ru",
+            school: "МБОУ «Гимназия №11»",
+            city: "Химки, Московская область",
+            useful: "12 лет успешного руководства школой с высокими образовательными результатами (ТОП-50 школ МО).\nВнедрение системы наставничества для молодых педагогов, снижение текучести кадров на 35%.\nЭксперт по подготовке к государственной аккредитации и лицензированию.\nОрганизация профильных инженерных и IT-классов в сотрудничестве с вузами.\nГрантовая деятельность: привлечено более 8 млн ₽ на модернизацию лабораторий.",
+            wantToKnow: "Цифровая трансформация школ: эффективные AI-инструменты для управленческого учёта.\nКак выстроить систему проектного обучения, интегрированную с региональными предприятиями.\nПрактики ментального здоровья педагогов: программы профилактики выгорания.\nКейсы по созданию автономии школы и внебюджетной деятельности.",
+            isMentor: true,
+            strengthsDetailed: [
+                { name: "Стратегическое планирование", val: 9.5 },
+                { name: "Управление персоналом и мотивация", val: 9.2 },
+                { name: "Финансовая эффективность / фандрайзинг", val: 8.8 },
+                { name: "Коммуникация с родительским сообществом", val: 9.7 },
+                { name: "Развитие инклюзивной среды", val: 8.4 }
+            ],
+            skillsDetailed: [
+                { name: "Цифровая трансформация образования", level: "Эксперт" },
+                { name: "Проектный менеджмент (гранты, дорожные карты)", level: "Эксперт" },
+                { name: "Управление изменениями / конфликтология", level: "Продвинутый" },
+                { name: "Бюджетирование и внебюджетная деятельность", level: "Продвинутый" },
+                { name: "Публичные выступления / образовательная аналитика", level: "Эксперт" }
+            ],
+            uniqueExperience: "Руководитель пилотного проекта «Школа полного дня» в Химках (охват 780 учеников).\nФиналист Всероссийского конкурса «Директор года – 2024».\nРазработала и внедрила систему «Цифровой помощник классного руководителя» (автоматизация отчётности, снижение бумажной нагрузки на 40%).\nОрганизатор ежегодного межмуниципального форума «Лидеры образования Подмосковья».\nАвтор статей в журнале «Управление школой» (темы: наставничество, аккредитационные процедуры).",
+            personalInterests: ["Современная педагогическая литература", "Медитация и осознанность для педагогов", "Графический дизайн", "Велотуризм", "Волонтёрство в просветительских проектах"],
+            tags: ["#Стратегическое_планирование", "#Наставничество_педагогов", "#IT_класс", "#Гранты_образование", "#Школьное_лидерство", "#Инклюзия"],
+            photo: null
+        },
+        {
+            name: "Анна Сергеевна Воронцова",
+            email: "anna@school3.ru",
+            school: "Гимназия №3",
+            city: "Красногорск",
+            useful: "Опыт внедрения инклюзивного образования, успешное прохождение аккредитации.\nСоздание ресурсного класса для детей с ОВЗ.\nВзаимодействие с родительским сообществом и общественными организациями.",
+            wantToKnow: "Цифровые платформы для управления школой, методики работы с молодыми педагогами.\nЭффективное наставничество для начинающих директоров.",
+            isMentor: true,
+            strengthsDetailed: [
+                { name: "Стратегическое планирование", val: 8 },
+                { name: "Работа с родителями", val: 9 },
+                { name: "Инклюзивное образование", val: 9.2 }
+            ],
+            skillsDetailed: [
+                { name: "Управление персоналом", level: "Продвинутый" },
+                { name: "Фандрайзинг", level: "Средний" },
+                { name: "Аккредитация и лицензирование", level: "Эксперт" }
+            ],
+            uniqueExperience: "Успешно прошла 2 аккредитации, создала ресурсный класс для детей с ОВЗ.\nРуководитель муниципальной инновационной площадки по инклюзии.",
+            personalInterests: ["Психология", "Чтение", "Садоводство"],
+            tags: ["#Инклюзия", "#Аккредитация", "#Родительский_комитет"],
+            photo: null
+        },
+        {
+            name: "Дмитрий Павлович Громов",
+            email: "dmitry@licey10.ru",
+            school: "Лицей №10",
+            city: "Долгопрудный",
+            useful: "Построение IT-лицея с нуля, привлечение грантов.\nОрганизация IT-классов и инженерных лабораторий.\nЦифровая трансформация образовательного процесса.",
+            wantToKnow: "Организация профильных классов, мотивация педагогов.\nСовременные методы проектного обучения и стартап-культуры в школе.",
+            isMentor: false,
+            strengthsDetailed: [
+                { name: "Цифровая трансформация", val: 9 },
+                { name: "Лидерство", val: 8.5 },
+                { name: "Управление проектами", val: 9 }
+            ],
+            skillsDetailed: [
+                { name: "Проектный менеджмент", level: "Эксперт" },
+                { name: "IT-инфраструктура", level: "Эксперт" },
+                { name: "Грантрайтинг", level: "Продвинутый" }
+            ],
+            uniqueExperience: "Создал IT-лицей с нуля, выиграл грант на оборудование лабораторий.\nПобедитель конкурса инновационных школ Московской области.",
+            personalInterests: ["Программирование", "Шахматы", "Робототехника"],
+            tags: ["#IT_лицей", "#Гранты", "#Цифровизация"],
+            photo: null
+        },
+        {
+            name: "Екатерина Викторовна Морозова",
+            email: "ekaterina@school22.ru",
+            school: "СОШ №22",
+            city: "Одинцово",
+            useful: "Создание школьного медиацентра, развитие волонтёрства.\nОрганизация школьного телевидения и медиаобразования.\nПривлечение волонтёров к социальным проектов.",
+            wantToKnow: "Эффективное наставничество для молодых директоров.\nСовременные инструменты медиапродвижения школы.",
+            isMentor: true,
+            strengthsDetailed: [
+                { name: "Коммуникабельность", val: 9 },
+                { name: "Креативность", val: 8 },
+                { name: "Организация мероприятий", val: 8.5 }
+            ],
+            skillsDetailed: [
+                { name: "Медиа", level: "Продвинутый" },
+                { name: "Организация мероприятий", level: "Продвинутый" },
+                { name: "SMM и PR", level: "Средний" }
+            ],
+            uniqueExperience: "Запустила школьное телевидение, привлекла волонтёров к социальным проектам.\nЛауреат премии «Лучший медиапроект школы».",
+            personalInterests: ["Журналистика", "Волонтёрство", "Фотография"],
+            tags: ["#Медиа", "#Волонтёрство", "#Школьное_ТВ"],
+            photo: null
+        }
+    ];
+
+    function initDemoRatings() {
+        const ratings = JSON.parse(localStorage.getItem('ratingsData') || '{}');
+        demoDirectors.forEach(d => { if (d.email && !ratings[d.email]) ratings[d.email] = { totalScore: Math.floor(Math.random() * 50) + 20, public: true, activities: [] }; });
+        localStorage.setItem('ratingsData', JSON.stringify(ratings));
+    }
+    
+    // ---------- ДЕТАЛЬНАЯ КАРТОЧКА ДИРЕКТОРА (МОДАЛЬНОЕ ОКНО) ----------
+    function showDirectorDetail(director) {
+        const existingOverlay = document.querySelector('.modal-overlay');
+        if (existingOverlay) existingOverlay.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-content';
+
+        const strengthsHtml = (director.strengthsDetailed || []).map(s => `
+            <div class="strength-row">
+                <span class="strength-name">${escapeHtml(s.name)}</span>
+                <div class="strength-bar"><div class="strength-fill" style="width: ${(s.val/10)*100}%;"></div></div>
+                <span class="strength-value">${s.val}</span>
+            </div>
+        `).join('');
+
+        const skillsHtml = (director.skillsDetailed || []).map(s => `
+            <div class="skill-item-compact">
+                <span>${escapeHtml(s.name)}</span>
+                <span class="skill-level">${escapeHtml(s.level)}</span>
+            </div>
+        `).join('');
+
+        const interestsArray = director.personalInterests || [];
+        const interestsHtml = interestsArray.map(i => `<span class="interest-badge">${escapeHtml(i)}</span>`).join('');
+        const tagsHtml = (director.tags || []).map(t => `<span class="detail-tag">${escapeHtml(t)}</span>`).join('');
+        const uniqueExperience = director.uniqueExperience || 'Не указано';
+        const usefulText = director.useful || 'Не указано';
+        const wantText = director.wantToKnow || 'Не указано';
+
+        modal.innerHTML = `
+            <button class="close-modal">&times;</button>
+            <div style="padding: 0 0 10px 0;">
+                <div class="card-header" style="margin-bottom: 20px;">
+                    <div class="avatar-placeholder" style="width:70px;height:70px;font-size:28px;">${director.name.charAt(0)}</div>
+                    <div class="card-title">
+                        <h2 style="margin-bottom:4px;">${escapeHtml(director.name)}</h2>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size:0.85rem;">
+                            <span>🏫 ${escapeHtml(director.school)}</span>
+                            <span>📍 ${escapeHtml(director.city)}</span>
+                            ${director.isMentor ? '<span class="badge-mentor">✨ Наставник-эксперт</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="info-section"><h3>🤝 Могу быть полезен</h3><div class="info-text">${escapeHtml(usefulText).replace(/\n/g, '<br>')}</div></div>
+                <div class="info-section"><h3>💡 Хочу узнать / интересует</h3><div class="info-text">${escapeHtml(wantText).replace(/\n/g, '<br>')}</div></div>
+                <div class="info-section"><h3>⭐ Сильные стороны (оценка 1–10)</h3>${strengthsHtml || '<div class="info-text">Не указано</div>'}</div>
+                <div class="info-section"><h3>🧠 Профессиональные навыки</h3>${skillsHtml || '<div class="info-text">Не указано</div>'}</div>
+                <div class="info-section"><h3>🏆 Уникальный опыт и достижения</h3><div class="info-text">${escapeHtml(uniqueExperience).replace(/\n/g, '<br>')}</div></div>
+                <div class="info-section"><h3>🎯 Личные интересы и увлечения</h3><div class="interests-line">${interestsHtml || '<div class="info-text">Не указано</div>'}</div></div>
+                ${tagsHtml ? `<div class="tags" style="margin-top: 12px;">${tagsHtml}</div>` : ''}
+                <button class="contact-btn" onclick="alert('📧 Связаться с ${escapeHtml(director.name)} можно через платформу Гравитация (функция в разработке)')">💬 Связаться с директором</button>
+                <hr style="margin:15px 0; border-color:rgba(255,255,255,0.1);">
+                <div style="font-size: 0.7rem; text-align: center; color: rgba(255,255,255,0.45);">Гравитация • Московская область • Карточка участника сообщества</div>
+            </div>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        const closeBtn = modal.querySelector('.close-modal');
+        closeBtn.addEventListener('click', () => overlay.remove());
+    }
+
+    // ---------- ОТОБРАЖЕНИЕ ДИРЕКТОРОВ ----------
+    let currentSearchTerm = '';
+    function directorMatchesSearch(d, term) { if (!term) return true; const t = term.toLowerCase(); const fields = [d.name, d.school, d.city, d.useful, d.wantToKnow, d.uniqueExperience, ...(d.personalInterests || []), ...(d.tags || []), ...(d.strengthsDetailed || []).map(s => s.name), ...(d.skillsDetailed || []).map(s => s.name)].map(f => (f || '').toLowerCase()); return fields.some(f => f.includes(t)); }
+    function getCurrentDirectorCard() { const profile = localStorage.getItem('directorProfile'); const school = localStorage.getItem('schoolInfo'); if (!profile && !school) return null; const p = profile ? JSON.parse(profile) : { name: '', strengths: [], skills: [], isMentor: false, experience: '', interests: '', photo: null }; const s = school ? JSON.parse(school) : { name: 'Школа не указана', address: '', usefulExperience: '', wantToKnow: '' }; return { name: p.name || 'Директор', email: getCurrentUserEmail(), school: s.name || 'Школа', city: s.address ? s.address.split(',')[1]?.trim() || s.address : 'МО', useful: s.usefulExperience || p.experience || 'Опыт не указан', wantToKnow: s.wantToKnow || 'Не указано', isMentor: p.isMentor || false, strengthsDetailed: p.strengths ? p.strengths.map(st => ({ name: st.name, val: st.val })) : [], skillsDetailed: p.skills ? p.skills.map(sk => ({ name: sk.name, level: sk.level })) : [], uniqueExperience: p.experience || 'Не указано', personalInterests: p.interests ? p.interests.split('\n').filter(i => i.trim()) : [], tags: [], photo: p.photo || null }; }
+    function renderDirectors() {
+        const container = document.getElementById('directorsList');
+        if (!container) return;
+        let all = [...demoDirectors];
+        const current = getCurrentDirectorCard();
+        if (current && current.name !== 'Директор' && current.name.trim() !== '') all = [current, ...all];
+        const filtered = all.filter(d => directorMatchesSearch(d, currentSearchTerm));
+        if (!filtered.length) { container.innerHTML = '<div>Ничего не найдено</div>'; return; }
+        let html = '';
+        const currentEmail = getCurrentUserEmail();
+        filtered.forEach(d => {
+            let avatarHtml = d.photo ? `<img src="${d.photo}" class="avatar-img" alt="Фото">` : `<div class="avatar-placeholder">${d.name.charAt(0)}</div>`;
+            let directorEmail = d.email || (d.name === (current?.name) ? currentEmail : null);
+            let ratingHtml = '';
+            if (directorEmail && canViewRating(directorEmail, currentEmail)) { const rd = getRatingData(directorEmail); ratingHtml = `<div class="rating-badge">⭐ Рейтинг: ${rd.totalScore} баллов</div>`; }
+            const allTags = [...(d.strengthsDetailed || []).map(s => s.name), ...(d.skillsDetailed || []).map(s => s.name)].slice(0,5);
+            html += `<div class="director-card"><div class="card-header">${avatarHtml}<div class="card-title"><h3>${escapeHtml(d.name)}</h3><p>🏫 ${escapeHtml(d.school)} • ${escapeHtml(d.city)} ${d.isMentor ? '<span class="badge-mentor">✨ Наставник</span>' : ''}</p>${ratingHtml}</div></div><div class="info-section"><h4>🤝 Могу быть полезен</h4><p>${escapeHtml(d.useful)}</p></div><div class="info-section"><h4>💡 Хочу узнать</h4><p>${escapeHtml(d.wantToKnow)}</p></div>${allTags.length ? `<div class="tags">${allTags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}<button class="contact-btn" onclick="alert('Связаться с ${escapeHtml(d.name)} можно через платформу')">💬 Связаться</button><button class="detail-btn" onclick="showDirectorDetail(${JSON.stringify(d).replace(/"/g, '&quot;')})">📖 Подробнее</button></div>`;
+        });
+        container.innerHTML = html;
+    }
+    function renderMentors() {
+        const container = document.getElementById('mentorsList');
+        const all = [...demoDirectors];
+        const mentors = all.filter(d => d.isMentor === true);
+        const currentEmail = getCurrentUserEmail();
+        container.innerHTML = mentors.map(m => {
+            let ratingHtml = '';
+            if (m.email && canViewRating(m.email, currentEmail)) { const rd = getRatingData(m.email); ratingHtml = `<span class="rating-badge" style="margin-left:8px;">⭐ ${rd.totalScore}</span>`; }
+            return `<div style="background:rgba(255,255,255,0.1); border-radius:15px; padding:15px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;"><div><strong>${escapeHtml(m.name)}</strong><div>${escapeHtml(m.school)}</div><div>${escapeHtml(m.useful)}</div></div><div>${ratingHtml}<span style="background:#00c6ff; padding:5px 10px; border-radius:20px; margin-left:8px;">Наставник</span></div></div>`;
+        }).join('');
+    }
+    
+    // ---------- ПРОФИЛЬ ----------
+    function updateProfileRatingDisplay() {
+        const email = getCurrentUserEmail();
+        if (!email) return;
+        const data = getRatingData(email);
+        const publicFlag = data.public || false;
+        const ratingContainer = document.getElementById('ratingDisplay');
+        if (ratingContainer) {
+            ratingContainer.innerHTML = `<div class="info-section"><h4>⭐ Мой рейтинг: ${data.totalScore} баллов</h4><div class="checkbox-label" style="margin-top: 8px;"><input type="checkbox" id="ratingPublicToggle" ${publicFlag ? 'checked' : ''}><label for="ratingPublicToggle">Рейтинг доступен для всех директоров</label></div><div style="margin-top: 12px;"><strong>История активности:</strong></div><div id="activitiesList">${data.activities.length ? data.activities.map(a => `<div class="activity-item">+${a.points} баллов: ${a.description}<br><small>${a.date}</small></div>`).join('') : '<div>Нет активностей</div>'}</div></div>`;
+            const toggle = document.getElementById('ratingPublicToggle');
+            if (toggle) toggle.addEventListener('change', (e) => { const newData = getRatingData(email); newData.public = e.target.checked; saveRatingData(email, newData); updateProfileRatingDisplay(); renderDirectors(); renderMentors(); });
+        }
+    }
+    function addStrength(name = '', val = 5) { const strengthsList = document.getElementById('strengthsList'); const newDiv = document.createElement('div'); newDiv.className = 'strength-item'; newDiv.innerHTML = `<input type="text" class="dynamic-input strength-name" placeholder="Например: Стратегическое планирование..." value="${name}"><input type="range" class="strength-val" min="1" max="10" value="${val}">`; strengthsList.appendChild(newDiv); }
+    function addSkill(name = '', level = 'Средний') { const skillsList = document.getElementById('skillsList'); const newDiv = document.createElement('div'); newDiv.className = 'skill-item'; const options = ['Начальный', 'Средний', 'Продвинутый', 'Эксперт'].map(opt => `<option value="${opt}" ${opt === level ? 'selected' : ''}>${opt}</option>`).join(''); newDiv.innerHTML = `<input type="text" class="dynamic-input skill-name" placeholder="Например: Цифровая трансформация..." value="${name}"><select class="skill-level" style="margin-top: 10px;">${options}</select>`; skillsList.appendChild(newDiv); }
+    function saveProfile() {
+        const strengths = []; document.querySelectorAll('.strength-item').forEach(item => { const name = item.querySelector('.strength-name').value; const val = item.querySelector('.strength-val').value; if(name.trim()) strengths.push({ name, val }); });
+        const skills = []; document.querySelectorAll('.skill-item').forEach(item => { const name = item.querySelector('.skill-name').value; const level = item.querySelector('.skill-level').value; if(name.trim()) skills.push({ name, level }); });
+        const profileData = { name: document.getElementById('directorName').value, email: document.getElementById('directorEmail').value, phone: document.getElementById('directorPhone').value, experience: document.getElementById('uniqueExperience').value, interests: document.getElementById('personalInterests').value, isMentor: document.getElementById('mentorCheckbox').checked, consent: document.getElementById('consentCheckbox').checked, strengths, skills };
+        if (tempPhotoBase64) profileData.photo = tempPhotoBase64; else { const oldProfile = localStorage.getItem('directorProfile'); if (oldProfile && JSON.parse(oldProfile).photo) profileData.photo = JSON.parse(oldProfile).photo; }
+        localStorage.setItem('directorProfile', JSON.stringify(profileData));
+        alert('Профиль сохранён!'); renderDirectors(); loadUserDataIntoForms();
+        const email = getCurrentUserEmail(); if (email && profileData.name && profileData.name !== 'Директор') addRatingActivity(email, 'profile_update', 'Обновил профиль', 5);
+    }
+    let tempPhotoBase64 = null;
+    function initPhotoUpload() { const fileInput = document.getElementById('directorPhoto'); if (!fileInput) return; fileInput.addEventListener('change', function(e) { const file = e.target.files[0]; if (file && file.type.startsWith('image/')) { if (file.size > 1024 * 1024) { alert('Файл слишком большой. Максимум 1 МБ'); fileInput.value = ''; return; } const reader = new FileReader(); reader.onload = function(ev) { tempPhotoBase64 = ev.target.result; document.getElementById('photoPreview').innerHTML = `<img src="${tempPhotoBase64}" alt="Фото профиля">`; }; reader.readAsDataURL(file); } else { alert('Пожалуйста, выберите изображение (JPEG, PNG, WebP)'); fileInput.value = ''; } }); }
+    function loadUserDataIntoForms() {
+        const savedProfile = localStorage.getItem('directorProfile');
+        if (savedProfile) { const profile = JSON.parse(savedProfile); document.getElementById('directorName').value = profile.name || ''; document.getElementById('directorEmail').value = profile.email || ''; document.getElementById('directorPhone').value = profile.phone || ''; document.getElementById('uniqueExperience').value = profile.experience || ''; document.getElementById('personalInterests').value = profile.interests || ''; document.getElementById('mentorCheckbox').checked = profile.isMentor || false; document.getElementById('consentCheckbox').checked = profile.consent || false; if (profile.photo) { document.getElementById('photoPreview').innerHTML = `<img src="${profile.photo}" alt="Фото профиля">`; tempPhotoBase64 = profile.photo; } else { document.getElementById('photoPreview').innerHTML = ''; tempPhotoBase64 = null; } const strengthsDiv = document.getElementById('strengthsList'); const skillsDiv = document.getElementById('skillsList'); strengthsDiv.innerHTML = ''; skillsDiv.innerHTML = ''; if (profile.strengths && profile.strengths.length) profile.strengths.forEach(s => addStrength(s.name, s.val)); else { addStrength('Стратегическое планирование',8); addStrength('Управление персоналом',7); } if (profile.skills && profile.skills.length) profile.skills.forEach(s => addSkill(s.name, s.level)); else addSkill('Цифровая трансформация','Средний'); } else { addStrength('Стратегическое планирование',8); addStrength('Управление персоналом',7); addSkill('Цифровая трансформация','Средний'); document.getElementById('consentCheckbox').checked = false; document.getElementById('photoPreview').innerHTML = ''; tempPhotoBase64 = null; }
+        const savedSchool = localStorage.getItem('schoolInfo'); if (savedSchool) { const school = JSON.parse(savedSchool); document.getElementById('schoolName').value = school.name || ''; document.getElementById('schoolAddress').value = school.address || ''; document.getElementById('studentCount').value = school.students || ''; document.getElementById('teacherCount').value = school.teachers || ''; document.getElementById('schoolType').value = school.type || 'Средняя общеобразовательная'; document.getElementById('buildingCount').value = school.buildingCount || ''; document.getElementById('usefulExperience').value = school.usefulExperience || ''; document.getElementById('wantToKnow').value = school.wantToKnow || ''; }
+        initPhotoUpload();
+    }
+    function saveSchool() { const schoolData = { name: document.getElementById('schoolName').value, address: document.getElementById('schoolAddress').value, students: document.getElementById('studentCount').value, teachers: document.getElementById('teacherCount').value, type: document.getElementById('schoolType').value, buildingCount: document.getElementById('buildingCount').value, usefulExperience: document.getElementById('usefulExperience').value, wantToKnow: document.getElementById('wantToKnow').value }; localStorage.setItem('schoolInfo', JSON.stringify(schoolData)); alert('Информация о школе сохранена!'); renderDirectors(); }
+    
+    // ---------- АДМИН-ПАНЕЛЬ ----------
+    function renderAdminPanel() {
+        const container = document.getElementById('admin'); if (!container) return;
+        const users = JSON.parse(localStorage.getItem('users') || '[]'); const ratingsData = JSON.parse(localStorage.getItem('ratingsData') || '{}');
+        let html = `<h2>👑 Админ-панель: рейтинг директоров</h2><div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Директор</th><th>Email</th><th>Рейтинг</th><th>Публичный</th><th>Активности (последние)</th></tr></thead><tbody>`;
+        users.forEach(user => { if (user.email === 'admin@gravitacia.ru') return; const rating = ratingsData[user.email] || { totalScore: 0, public: false, activities: [] }; const lastActs = rating.activities.slice(0, 3).map(a => `${a.description} (+${a.points})`).join('<br>') || '—'; html += `<tr><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.email)}</td><td><strong>${rating.totalScore}</strong></td><td>${rating.public ? 'Да' : 'Нет'}</td><td><small>${lastActs}</small></td>`; });
+        html += `</tbody></table></div>`; container.innerHTML = html;
+    }
+    
+    // ---------- АВТОРИЗАЦИЯ ----------
+    function showLoginModal() {
+        const html = `<div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="director@school.ru"></div><div class="form-group"><label>Пароль</label><input type="password" id="loginPassword" placeholder="******"></div><button class="save-btn" id="doLoginBtn">Войти</button>`;
+        const modal = showModal('Вход в аккаунт', html);
+        modal.querySelector('#doLoginBtn').onclick = () => {
+            const email = modal.querySelector('#loginEmail').value.trim(); const password = modal.querySelector('#loginPassword').value;
+            const users = JSON.parse(localStorage.getItem('users') || '[]'); const user = users.find(u => u.email === email && u.password === password);
+            if (user) { localStorage.setItem('userLoggedIn', 'true'); localStorage.setItem('currentUser', JSON.stringify(user)); modal.remove(); showMainApp(); } else alert('Неверный email или пароль');
+        };
+    }
+    function showRegisterModal() {
+        const html = `<div class="form-group"><label>ФИО</label><input type="text" id="regName" placeholder="Иванов Иван Иванович"></div><div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="director@school.ru"></div><div class="form-group"><label>Телефон</label><input type="tel" id="regPhone" placeholder="+7 (999) 999-99-99"></div><div class="form-group"><label>Пароль</label><input type="password" id="regPassword" placeholder="минимум 6 символов"></div><button class="save-btn" id="doRegisterBtn">Зарегистрироваться</button>`;
+        const modal = showModal('Регистрация', html);
+        modal.querySelector('#doRegisterBtn').onclick = () => {
+            const name = modal.querySelector('#regName').value.trim(); const email = modal.querySelector('#regEmail').value.trim(); const phone = modal.querySelector('#regPhone').value.trim(); const password = modal.querySelector('#regPassword').value;
+            if (!name || !email || !password) { alert('Заполните все поля'); return; }
+            if (password.length < 6) { alert('Пароль должен быть не менее 6 символов'); return; }
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            if (users.some(u => u.email === email)) { alert('Пользователь с таким email уже существует'); return; }
+            const newUser = { name, email, phone, password }; users.push(newUser); localStorage.setItem('users', JSON.stringify(users)); localStorage.setItem('userLoggedIn', 'true'); localStorage.setItem('currentUser', JSON.stringify(newUser));
+            const ratings = JSON.parse(localStorage.getItem('ratingsData') || '{}'); if (!ratings[email]) ratings[email] = { totalScore: 0, public: false, activities: [] }; localStorage.setItem('ratingsData', JSON.stringify(ratings));
+            modal.remove(); showMainApp();
+        };
+    }
+    function logout() { localStorage.removeItem('userLoggedIn'); localStorage.removeItem('currentUser'); document.getElementById('splashScreen').style.display = 'flex'; document.getElementById('mainContent').classList.remove('active'); }
+    
+    // ---------- ВКЛАДКИ ----------
+    function initTabs() {
+        const topButtons = document.querySelectorAll('#topNav button'); const topContents = ['profile', 'school', 'events', 'directors', 'mentors'];
+        const bottomButtons = document.querySelectorAll('#bottomNav .nav-item'); let bottomContents = ['expert', 'gl', 'internship', 'calendar']; if (isAdmin()) bottomContents.push('admin');
+        function switchTopTab(tabId) { topContents.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active'); }); const activeTab = document.getElementById(tabId); if (activeTab) activeTab.classList.add('active'); topButtons.forEach(btn => { if (btn.getAttribute('data-tab') === tabId) btn.classList.add('active'); else btn.classList.remove('active'); }); bottomContents.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active'); }); bottomButtons.forEach(btn => btn.classList.remove('active')); }
+        function switchBottomTab(tabId) { bottomContents.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active'); }); const activeTab = document.getElementById(tabId); if (activeTab) activeTab.classList.add('active'); bottomButtons.forEach(btn => { if (btn.getAttribute('data-newtab') === tabId) btn.classList.add('active'); else btn.classList.remove('active'); }); topContents.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active'); }); topButtons.forEach(btn => btn.classList.remove('active')); if (tabId === 'admin' && isAdmin()) renderAdminPanel(); }
+        topButtons.forEach(btn => { const tabId = btn.getAttribute('data-tab'); btn.addEventListener('click', () => switchTopTab(tabId)); });
+        bottomButtons.forEach(btn => { const tabId = btn.getAttribute('data-newtab'); if (tabId) btn.addEventListener('click', () => switchBottomTab(tabId)); });
+        switchTopTab('profile'); renderDirectors(); renderEvents(); renderMentors();
+    }
+    
+    function showMainApp() {
+        document.getElementById('splashScreen').style.display = 'none'; const main = document.getElementById('mainContent'); main.classList.add('active');
+        initTabs(); loadUserDataIntoForms(); renderDirectors(); renderEvents(); renderMentors(); updateProfileRatingDisplay();
+        const adminBtn = document.getElementById('adminNavBtn'); if (adminBtn) adminBtn.style.display = isAdmin() ? 'flex' : 'none'; if (isAdmin()) renderAdminPanel();
+    }
+    
+    // ---------- ЗАПОЛНЕНИЕ HTML-КОНТЕЙНЕРОВ ----------
+    document.getElementById('profile').innerHTML = `<h2 style="margin-bottom:20px;">Профиль директора</h2><div class="form-group"><label>Фото директора</label><input type="file" id="directorPhoto" accept="image/jpeg,image/png,image/webp"><div id="photoPreview" class="photo-preview"></div></div><div class="form-group"><label>ФИО полностью</label><input type="text" id="directorName" placeholder="Иванов Иван Иванович"></div><div class="form-group"><label>Email</label><input type="email" id="directorEmail" placeholder="director@school.ru"></div><div class="form-group"><label>Телефон</label><input type="tel" id="directorPhone" placeholder="+7 (999) 999-99-99"></div><h3 style="margin:20px 0 10px;">Мои сильные стороны</h3><div id="strengthsList"></div><button class="add-btn" onclick="addStrength()">+ Добавить качество</button><h3 style="margin:20px 0 10px;">Профессиональные навыки</h3><div id="skillsList"></div><button class="add-btn" onclick="addSkill()">+ Добавить навык</button><h3 style="margin:20px 0 10px;">Уникальный опыт</h3><div class="form-group"><textarea id="uniqueExperience" rows="3" placeholder="Расскажите о вашем уникальном профессиональном опыте..."></textarea></div><h3 style="margin:20px 0 10px;">Личные интересы</h3><div class="form-group"><textarea id="personalInterests" rows="3" placeholder="Ваши хобби, увлечения и интересы..."></textarea></div><div class="checkbox-label" style="margin-top:20px;"><input type="checkbox" id="mentorCheckbox"><label for="mentorCheckbox">Готов стать наставником будущих лидеров в сфере образования</label></div><div class="checkbox-label"><input type="checkbox" id="consentCheckbox"><label for="consentCheckbox">Согласен на обработку персональных данных</label></div><button class="save-btn" onclick="saveProfile()">Сохранить профиль</button><div id="ratingDisplay"></div>`;
+    document.getElementById('school').innerHTML = `<h2 style="margin-bottom:20px;">Информация о школе</h2><div class="form-group"><label>Полное название школы</label><input type="text" id="schoolName" placeholder="МБОУ СОШ №1"></div><div class="form-group"><label>Адрес школы</label><input type="text" id="schoolAddress" placeholder="г. Москва, ул. Школьная, 1"></div><div class="form-group"><label>Количество учеников</label><input type="number" id="studentCount" placeholder="500"></div><div class="form-group"><label>Количество педагогов</label><input type="number" id="teacherCount" placeholder="30"></div><div class="form-group"><label>Тип школы</label><select id="schoolType"><option>Средняя общеобразовательная</option><option>Гимназия</option><option>Лицей</option></select></div><div class="form-group"><label>Количество зданий</label><input type="number" id="buildingCount" placeholder="1"></div><div class="form-group"><label>Могу быть полезен:</label><textarea id="usefulExperience" rows="3"></textarea></div><div class="form-group"><label>Хочу узнать:</label><textarea id="wantToKnow" rows="3"></textarea></div><button class="save-btn" onclick="saveSchool()">Сохранить информацию</button>`;
+    document.getElementById('events').innerHTML = `<h2 style="margin-bottom:20px;">Обмен опытом: мероприятия</h2><div style="background:rgba(255,255,255,0.1); border-radius:20px; padding:15px; margin-bottom:20px;"><h3 style="margin-bottom:15px;">Создать мероприятие</h3><div class="form-group"><label>Название</label><input type="text" id="eventTitle" placeholder="Мастер-класс по цифровизации"></div><div class="form-group"><label>Дата и время</label><input type="text" id="eventDate" placeholder="15 мая 2026, 14:00"></div><div class="form-group"><label>Описание</label><textarea id="eventDesc" rows="2"></textarea></div><div class="form-group"><label>Максимум участников</label><input type="number" id="eventMax" placeholder="10"></div><div class="checkbox-label"><input type="checkbox" id="eventSpeakerCheckbox"><label for="eventSpeakerCheckbox">Я буду спикером на этом мероприятии (+15 баллов)</label></div><button class="save-btn" id="createEventBtn">➕ Создать мероприятие</button></div><h3>Доступные мероприятия</h3><div id="eventsList"></div>`;
+    document.getElementById('directors').innerHTML = `<h2 style="margin-bottom:20px;">🧑‍💼 Директора школ</h2><div class="search-container"><input type="text" id="directorSearchInput" class="search-input" placeholder="🔍 Поиск..."></div><div id="directorsList" class="directors-grid"></div>`;
+    document.getElementById('mentors').innerHTML = `<h2 style="margin-bottom:20px;">Потенциальные наставники</h2><div id="mentorsList"></div>`;
+    document.getElementById('expert').innerHTML = `<h2>📊 Экспертное мнение</h2><div class="new-section-card"><h3>Тренды в образовании 2026</h3><p>Цифровая трансформация, персонализация обучения, развитие soft skills. Эксперты сообщества делятся прогнозами.</p></div><div class="new-section-card"><h3>Управление изменениями</h3><p>Как внедрить новые практики без сопротивления коллектива? Опыт директоров из Московской области.</p></div><div class="new-section-card"><h3>Финансовая автономия школы</h3><p>Привлечение внебюджетных средств, гранты, партнёрства с бизнесом. Реальные кейсы.</p></div>`;
+    document.getElementById('gl').innerHTML = `<h2>⭐ Гравитация лидерства</h2><div class="new-section-card"><h3>Школа молодого директора</h3><p>Программа наставничества для начинающих руководителей. Запись на курс откроется в мае.</p></div><div class="new-section-card"><h3>Лидерские компетенции</h3><p>Самодиагностика, развитие эмоционального интеллекта, стратегическое мышление.</p></div><div class="new-section-card"><h3>Кейс-чемпионат «Управляю школой»</h3><p>Решаем реальные задачи из практики директоров. Приём заявок до 20 апреля.</p></div>`;
+    document.getElementById('internship').innerHTML = `<h2>🎓 Стажировка</h2><div class="new-section-card"><h3>Стажировка в лучших школах МО</h3><p>Возможность посетить школы-лидеры, перенять опыт. Ближайшая стажировка: 15–17 мая.</p></div><div class="new-section-card"><h3>Виртуальная стажировка</h3><p>Онлайн-модули по управлению качеством, цифровым инструментам, работе с родителями.</p></div><div class="new-section-card"><h3>Заявка на стажировку</h3><p>Оставьте заявку в личном кабинете, и мы подберём подходящую программу.</p></div>`;
+    document.getElementById('calendar').innerHTML = `<h2>📅 Календарь мероприятий</h2><div class="new-section-card"><h3>12 апреля – Вебинар «Эффективное бюджетирование»</h3><p>Спикер: Елена Громова, директор гимназии №11. Регистрация в разделе «Мероприятия».</p></div><div class="new-section-card"><h3>25 апреля – Форум «Лидеры образования Подмосковья»</h3><p>Очный форум в Химках. Участие бесплатное по предварительной записи.</p></div><div class="new-section-card"><h3>1–5 мая – Онлайн-марафон «Наставничество в школе»</h3><p>Практические инструменты для наставников и молодых педагогов.</p></div>`;
+    
+    // ---------- ОБРАБОТЧИКИ ----------
+    document.getElementById('loginBtn').onclick = showLoginModal;
+    document.getElementById('registerBtn').onclick = showRegisterModal;
+    document.getElementById('logoutBtn').onclick = logout;
+    document.getElementById('createEventBtn')?.addEventListener('click', () => {
+        const title = document.getElementById('eventTitle').value.trim(); const date = document.getElementById('eventDate').value.trim(); const desc = document.getElementById('eventDesc').value.trim(); const max = document.getElementById('eventMax').value; const isSpeaker = document.getElementById('eventSpeakerCheckbox').checked;
+        if (!title || !date || !desc) { alert('Заполните все поля'); return; }
+        createEvent(title, date, desc, max, isSpeaker);
+        document.getElementById('eventTitle').value = ''; document.getElementById('eventDate').value = ''; document.getElementById('eventDesc').value = ''; document.getElementById('eventMax').value = ''; document.getElementById('eventSpeakerCheckbox').checked = false;
+    });
+    document.getElementById('directorSearchInput')?.addEventListener('input', (e) => { currentSearchTerm = e.target.value; renderDirectors(); });
+    
+    // ---------- СТАРТ ----------
+    initRatingSystem(); initDemoRatings(); loadEventsFromStorage();
+    if (localStorage.getItem('userLoggedIn') === 'true') showMainApp();
+    else document.getElementById('splashScreen').style.display = 'flex';
+</script>
+
+<script>
+    (function() {
+        const glEventsData = [
+            { id: 'gl1', title: 'Школа молодого директора', description: 'Программа наставничества для начинающих руководителей. Запись на курс откроется в мае.', date: 'Май 2026' },
+            { id: 'gl2', title: 'Лидерские компетенции', description: 'Самодиагностика, развитие эмоционального интеллекта, стратегическое мышление.', date: 'Постоянно' },
+            { id: 'gl3', title: 'Кейс-чемпионат «Управляю школой»', description: 'Решаем реальные задачи из практики директоров. Приём заявок до 20 апреля.', date: 'До 20 апреля' }
+        ];
+        const internshipEventsData = [
+            { id: 'int1', title: 'Стажировка в лучших школах МО', description: 'Возможность посетить школы-лидеры, перенять опыт. Ближайшая стажировка: 15–17 мая.', date: '15–17 мая' },
+            { id: 'int2', title: 'Виртуальная стажировка', description: 'Онлайн-модули по управлению качеством, цифровым инструментам, работе с родителями.', date: 'Постоянно' },
+            { id: 'int3', title: 'Заявка на стажировку', description: 'Оставьте заявку в личном кабинете, и мы подберём подходящую программу.', date: 'По запросу' }
+        ];
+        const calendarEventsData = [
+            { id: 'cal1', title: 'Вебинар «Эффективное бюджетирование»', description: 'Спикер: Елена Громова, директор гимназии №11. Регистрация в разделе «Мероприятия».', date: '12 апреля' },
+            { id: 'cal2', title: 'Форум «Лидеры образования Подмосковья»', description: 'Очный форум в Химках. Участие бесплатное по предварительной записи.', date: '25 апреля' },
+            { id: 'cal3', title: 'Онлайн-марафон «Наставничество в школе»', description: 'Практические инструменты для наставников и молодых педагогов.', date: '1–5 мая' }
+        ];
+
+        const STORAGE_KEYS = {
+            gl: 'glEventRegistrations',
+            internship: 'internshipEventRegistrations',
+            calendar: 'calendarEventRegistrations'
+        };
+
+        function loadRegistrations(key) {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : {};
+        }
+
+        function saveRegistrations(key, registrations) {
+            localStorage.setItem(key, JSON.stringify(registrations));
+        }
+
+        function registerForEvent(category, eventId, eventTitle) {
+            const currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                alert('Необходимо авторизоваться');
+                return;
+            }
+            const user = JSON.parse(currentUser);
+            const schoolInfo = localStorage.getItem('schoolInfo');
+            const schoolName = schoolInfo ? (JSON.parse(schoolInfo).name || 'Школа не указана') : 'Школа не указана';
+
+            const employeeName = prompt('ФИО сотрудника:', user.name || '');
+            if (!employeeName) return;
+            const position = prompt('Должность:', 'Директор');
+            if (!position) return;
+            const school = prompt('От какой школы?', schoolName);
+            if (!school) return;
+
+            const registrations = loadRegistrations(STORAGE_KEYS[category]);
+            if (!registrations[eventId]) registrations[eventId] = [];
+            registrations[eventId].push({
+                employeeName,
+                position,
+                schoolName: school,
+                registeredAt: new Date().toLocaleString(),
+                registeredBy: user.email
+            });
+            saveRegistrations(STORAGE_KEYS[category], registrations);
+
+            if (window.addRatingActivity) {
+                window.addRatingActivity(user.email, 'participation', `Зарегистрировал(а) ${employeeName} на "${eventTitle}" (${category})`, 2);
+            }
+
+            alert(`Сотрудник ${employeeName} успешно зарегистрирован на "${eventTitle}"`);
+            if (category === 'gl') renderGL();
+            else if (category === 'internship') renderInternship();
+            else if (category === 'calendar') renderCalendar();
+        }
+
+        function renderGL() {
+            const container = document.getElementById('gl');
+            if (!container) return;
+            const registrations = loadRegistrations(STORAGE_KEYS.gl);
+            let html = `<h2>⭐ Гравитация лидерства</h2>`;
+            glEventsData.forEach(event => {
+                const eventRegs = registrations[event.id] || [];
+                html += `
+                    <div class="new-section-card">
+                        <h3>${escapeHtml(event.title)}</h3>
+                        <p>📅 ${escapeHtml(event.date)}</p>
+                        <p>${escapeHtml(event.description)}</p>
+                        <button class="save-btn" style="margin-top:10px; padding:8px;" onclick="window.registerForGLEvent('${event.id}', '${escapeHtml(event.title)}')">📝 Зарегистрироваться</button>
+                        ${eventRegs.length ? `<div style="margin-top:12px;"><strong>Записавшиеся:</strong><ul>${eventRegs.map(r => `<li>${escapeHtml(r.employeeName)} (${escapeHtml(r.position)}) — ${escapeHtml(r.schoolName)}</li>`).join('')}</ul></div>` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderInternship() {
+            const container = document.getElementById('internship');
+            if (!container) return;
+            const registrations = loadRegistrations(STORAGE_KEYS.internship);
+            let html = `<h2>🎓 Стажировка</h2>`;
+            internshipEventsData.forEach(event => {
+                const eventRegs = registrations[event.id] || [];
+                html += `
+                    <div class="new-section-card">
+                        <h3>${escapeHtml(event.title)}</h3>
+                        <p>📅 ${escapeHtml(event.date)}</p>
+                        <p>${escapeHtml(event.description)}</p>
+                        <button class="save-btn" style="margin-top:10px; padding:8px;" onclick="window.registerForInternshipEvent('${event.id}', '${escapeHtml(event.title)}')">📝 Зарегистрироваться</button>
+                        ${eventRegs.length ? `<div style="margin-top:12px;"><strong>Записавшиеся:</strong><ul>${eventRegs.map(r => `<li>${escapeHtml(r.employeeName)} (${escapeHtml(r.position)}) — ${escapeHtml(r.schoolName)}</li>`).join('')}</ul></div>` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderCalendar() {
+            const container = document.getElementById('calendar');
+            if (!container) return;
+            const registrations = loadRegistrations(STORAGE_KEYS.calendar);
+            let html = `<h2>📅 Календарь мероприятий</h2>`;
+            calendarEventsData.forEach(event => {
+                const eventRegs = registrations[event.id] || [];
+                html += `
+                    <div class="new-section-card">
+                        <h3>${escapeHtml(event.title)}</h3>
+                        <p>📅 ${escapeHtml(event.date)}</p>
+                        <p>${escapeHtml(event.description)}</p>
+                        <button class="save-btn" style="margin-top:10px; padding:8px;" onclick="window.registerForCalendarEvent('${event.id}', '${escapeHtml(event.title)}')">📝 Зарегистрироваться</button>
+                        ${eventRegs.length ? `<div style="margin-top:12px;"><strong>Записавшиеся:</strong><ul>${eventRegs.map(r => `<li>${escapeHtml(r.employeeName)} (${escapeHtml(r.position)}) — ${escapeHtml(r.schoolName)}</li>`).join('')}</ul></div>` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        window.registerForGLEvent = (eventId, eventTitle) => registerForEvent('gl', eventId, eventTitle);
+        window.registerForInternshipEvent = (eventId, eventTitle) => registerForEvent('internship', eventId, eventTitle);
+        window.registerForCalendarEvent = (eventId, eventTitle) => registerForEvent('calendar', eventId, eventTitle);
+
+        setTimeout(() => {
+            renderGL();
+            renderInternship();
+            renderCalendar();
+        }, 100);
+    })();
+</script>
+</body>
+</html>

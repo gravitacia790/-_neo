@@ -1,0 +1,329 @@
+const path = require('path');
+const fs = require('fs');
+const { DatabaseSync } = require('node:sqlite');
+const bcrypt = require('bcryptjs');
+
+const DATA_DIR = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const DB_PATH = path.join(DATA_DIR, 'gravitacia.db');
+const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
+
+// Эмуляция db.transaction(fn) из better-sqlite3
+db.transaction = function (fn) {
+  return function (...args) {
+    db.exec('BEGIN');
+    try {
+      const result = fn(...args);
+      db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      try { db.exec('ROLLBACK'); } catch {}
+      throw err;
+    }
+  };
+};
+
+function migrate() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      role TEXT NOT NULL DEFAULT 'director',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS profiles (
+      user_id INTEGER PRIMARY KEY,
+      experience TEXT,
+      interests TEXT,
+      is_mentor INTEGER NOT NULL DEFAULT 0,
+      consent INTEGER NOT NULL DEFAULT 0,
+      photo TEXT,
+      strengths TEXT NOT NULL DEFAULT '[]',
+      skills TEXT NOT NULL DEFAULT '[]',
+      tags TEXT NOT NULL DEFAULT '[]',
+      city TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS schools (
+      user_id INTEGER PRIMARY KEY,
+      name TEXT,
+      address TEXT,
+      students INTEGER,
+      teachers INTEGER,
+      type TEXT,
+      building_count INTEGER,
+      useful_experience TEXT,
+      want_to_know TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      max_participants INTEGER NOT NULL DEFAULT 999,
+      creator_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS event_registrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      employee_name TEXT NOT NULL,
+      position TEXT NOT NULL,
+      school_name TEXT NOT NULL,
+      registered_by INTEGER NOT NULL,
+      registered_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (registered_by) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS extra_registrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      employee_name TEXT NOT NULL,
+      position TEXT NOT NULL,
+      school_name TEXT NOT NULL,
+      registered_by INTEGER NOT NULL,
+      registered_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (registered_by) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS ratings (
+      user_id INTEGER PRIMARY KEY,
+      total_score INTEGER NOT NULL DEFAULT 0,
+      is_public INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS rating_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      points INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_events_creator ON events(creator_id);
+    CREATE INDEX IF NOT EXISTS idx_event_regs_event ON event_registrations(event_id);
+    CREATE INDEX IF NOT EXISTS idx_extra_regs ON extra_registrations(category, event_id);
+    CREATE INDEX IF NOT EXISTS idx_rating_acts_user ON rating_activities(user_id, created_at DESC);
+  `);
+}
+
+function ensureAdmin() {
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@gravitacia.ru';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail);
+  if (!existing) {
+    const hash = bcrypt.hashSync(adminPassword, 10);
+    const info = db.prepare(
+      `INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin')`
+    ).run(adminEmail, hash, 'Администратор');
+    db.prepare('INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0)').run(info.lastInsertRowid);
+    console.log(`[db] Создан администратор: ${adminEmail} / ${adminPassword}`);
+  }
+}
+
+function seedDemoDirectors() {
+  const count = db.prepare('SELECT COUNT(*) AS c FROM users WHERE role = ?').get('director').c;
+  if (count > 0) return;
+
+  const demos = [
+    {
+      name: 'Елена Викторовна Громова',
+      email: 'elena@school11.ru',
+      phone: '+7 (999) 111-11-11',
+      city: 'Химки, Московская область',
+      school: {
+        name: 'МБОУ «Гимназия №11»',
+        address: 'Химки, ул. Ленина, 11',
+        students: 1200, teachers: 85, type: 'Гимназия', building_count: 2,
+        useful_experience: '12 лет успешного руководства школой с высокими образовательными результатами (ТОП-50 школ МО).\nВнедрение системы наставничества для молодых педагогов, снижение текучести кадров на 35%.\nЭксперт по подготовке к государственной аккредитации и лицензированию.\nОрг��низация профильных инженерных и IT-классов в сотрудничеств�� с вузами.\nГрантовая деятельность: привлечено более 8 млн ₽ на модернизацию лабораторий.',
+        want_to_know: 'Цифровая трансформация школ: эффективные AI-инструменты для управленческого учёта.\nКак выстроить систему проектного обучения, интегрированную с региональными предприятиями.\nПрактики ментального здоровья педагогов: программы профилактики выгорания.\nКейсы по созданию автономии школы и внебюджетной деятельности.'
+      },
+      profile: {
+        is_mentor: 1,
+        experience: 'Руководитель пилотного проекта «Школа полного дня» в Химках (охват 780 учеников).\nФиналист Всероссийского конкурса «Директор года – 2024».\nРазработала и внедрила систему «Цифровой помощник классного руководителя».',
+        interests: 'Современная педагогическая литература\nМедитация и осознанность для педагогов\nГрафический дизайн\nВелотуризм\nВолонтёрство в просветительских проектах',
+        strengths: [
+          { name: 'Стратегическое планирование', val: 9.5 },
+          { name: 'Управление персоналом и мотивация', val: 9.2 },
+          { name: 'Финансовая эффективность / фандрайзинг', val: 8.8 },
+          { name: 'Коммуникация с родительским сообществом', val: 9.7 },
+          { name: 'Развитие инклюзивной среды', val: 8.4 }
+        ],
+        skills: [
+          { name: 'Цифровая трансформация образования', level: 'Эксперт' },
+          { name: 'Проектный менеджмент (гранты, дорожные карты)', level: 'Эксперт' },
+          { name: 'Управление изменениями / конфликтология', level: 'Продвинутый' },
+          { name: 'Бюджетирование и внебюджетная деятельность', level: 'Продвинутый' },
+          { name: 'Публичные выступления / образовательная аналитика', level: 'Эксперт' }
+        ],
+        tags: ['#Стратегическое_планирование', '#Наставничество_педагогов', '#IT_класс', '#Гранты_образование', '#Школьное_лидерство', '#Инклюзия']
+      },
+      rating: 87
+    },
+    {
+      name: 'Анна Сергеевна Воронцова',
+      email: 'anna@school3.ru',
+      phone: '+7 (999) 222-22-22',
+      city: 'Красногорск',
+      school: {
+        name: 'Гимназия №3', address: 'Красногорск, ул. Школьная, 3',
+        students: 850, teachers: 60, type: 'Гимназия', building_count: 1,
+        useful_experience: 'Опыт внедрения инклюзивного образования, успешное прохождение аккредитации.\nСоздание ресурсного класса для детей с ОВЗ.\nВзаимодействие с родительским сообществом и общественными организациями.',
+        want_to_know: 'Цифровые платформы для управления школой, методики работы с молодыми педагогами.\nЭффективное наставничество для начинающих директоров.'
+      },
+      profile: {
+        is_mentor: 1,
+        experience: 'Успешно прошла 2 аккредитации, создала ресурсный класс для детей с ОВЗ.\nРуководитель муниципальной инновационной площадки по инклюзии.',
+        interests: 'Психология\nЧтение\nСадоводство',
+        strengths: [
+          { name: 'Стратегическое планирование', val: 8 },
+          { name: 'Работа с родителями', val: 9 },
+          { name: 'Инклюзивное образование', val: 9.2 }
+        ],
+        skills: [
+          { name: 'Управление персоналом', level: 'Продвинутый' },
+          { name: 'Фандрайзинг', level: 'Средний' },
+          { name: 'Аккредитация и лицензирование', level: 'Эксперт' }
+        ],
+        tags: ['#Инклюзия', '#Аккредитация', '#Родительский_комитет']
+      },
+      rating: 64
+    },
+    {
+      name: 'Дмитрий Павлович Громов',
+      email: 'dmitry@licey10.ru',
+      phone: '+7 (999) 333-33-33',
+      city: 'Долгопрудный',
+      school: {
+        name: 'Лицей №10', address: 'Долгопрудный, ул. Науки, 10',
+        students: 700, teachers: 55, type: 'Лицей', building_count: 1,
+        useful_experience: 'Построение IT-лицея с нуля, привлечение грантов.\nОрганизация IT-классов и инженерных лабораторий.\nЦифровая трансформация образовательного процесса.',
+        want_to_know: 'Организация профильных классов, мотивация педагогов.\nСовременные методы проектного обучения и стартап-культуры в школе.'
+      },
+      profile: {
+        is_mentor: 0,
+        experience: 'Создал IT-лицей с нуля, выиграл грант на оборудование лабораторий.\nПобедитель конкурса инновационных школ Московской области.',
+        interests: 'Программирование\nШахм��ты\nРобототехника',
+        strengths: [
+          { name: 'Цифровая трансформация', val: 9 },
+          { name: 'Лидерство', val: 8.5 },
+          { name: 'Управление проектами', val: 9 }
+        ],
+        skills: [
+          { name: 'Проектный менеджмент', level: 'Эксперт' },
+          { name: 'IT-инфраструктура', level: 'Эксперт' },
+          { name: 'Грантрайтинг', level: 'Продвинутый' }
+        ],
+        tags: ['#IT_лицей', '#Гранты', '#Цифровизация']
+      },
+      rating: 52
+    },
+    {
+      name: 'Екатерина Викторовна Морозова',
+      email: 'ekaterina@school22.ru',
+      phone: '+7 (999) 444-44-44',
+      city: 'Одинцово',
+      school: {
+        name: 'СОШ №22', address: 'Одинцово, ул. Центральная, 22',
+        students: 950, teachers: 65, type: 'Средняя общеобразовательная', building_count: 1,
+        useful_experience: 'Создание школьного медиацентра, развитие волонтёрства.\nОрганизация школьного телевидения и медиаобразования.\nПривлечение волонтёров к социальным проектам.',
+        want_to_know: 'Эффективное наставничество для молодых директоров.\nСовременные инструменты медиапродвижения школы.'
+      },
+      profile: {
+        is_mentor: 1,
+        experience: 'Запустила школьное телевидение, привлекла волонтёров к социальным проектам.\nЛауреат премии «Лучший медиапроект школы».',
+        interests: 'Журналистика\nВолонтёрство\nФотография',
+        strengths: [
+          { name: 'Коммуникабельность', val: 9 },
+          { name: 'Креативность', val: 8 },
+          { name: 'Организация мероприятий', val: 8.5 }
+        ],
+        skills: [
+          { name: 'Медиа', level: 'Продвинутый' },
+          { name: 'Организация мероприятий', level: 'Продвинутый' },
+          { name: 'SMM и PR', level: 'Средний' }
+        ],
+        tags: ['#Медиа', '#Волонтёрство', '#Школьное_ТВ']
+      },
+      rating: 41
+    }
+  ];
+
+  const insertUser = db.prepare(
+    `INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director')`
+  );
+  const insertProfile = db.prepare(
+    `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, strengths, skills, tags, city)
+     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`
+  );
+  const insertSchool = db.prepare(
+    `INSERT INTO schools (user_id, name, address, students, teachers, type, building_count, useful_experience, want_to_know)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insertRating = db.prepare(
+    `INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, ?, 1)`
+  );
+
+  const tx = db.transaction(() => {
+    const hash = bcrypt.hashSync('demo1234', 10);
+    for (const d of demos) {
+      const info = insertUser.run(d.email, hash, d.name, d.phone);
+      const uid = info.lastInsertRowid;
+      insertProfile.run(
+        uid,
+        d.profile.experience,
+        d.profile.interests,
+        d.profile.is_mentor,
+        JSON.stringify(d.profile.strengths),
+        JSON.stringify(d.profile.skills),
+        JSON.stringify(d.profile.tags),
+        d.city
+      );
+      insertSchool.run(
+        uid, d.school.name, d.school.address, d.school.students, d.school.teachers,
+        d.school.type, d.school.building_count, d.school.useful_experience, d.school.want_to_know
+      );
+      insertRating.run(uid, d.rating);
+    }
+  });
+  tx();
+  console.log(`[db] Засидировано ${demos.length} демо-директоров (пароль: demo1234)`);
+}
+
+function init() {
+  migrate();
+  ensureAdmin();
+  seedDemoDirectors();
+}
+
+if (require.main === module) {
+  if (process.argv.includes('--reset')) {
+    db.close();
+    if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+    console.log('[db] База удалена. Запустите сервер для пересоздания.');
+    process.exit(0);
+  }
+  init();
+  console.log('[db] Инициализация завершена');
+}
+
+module.exports = { db, init };
