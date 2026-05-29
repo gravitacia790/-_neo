@@ -1845,6 +1845,8 @@ body.nav-sheet-open {
     box-shadow: 0 18px 48px rgba(33, 26, 24, 0.18), inset 0 1px 0 rgba(255,255,255,0.8);
     isolation: isolate;
     transition: transform var(--motion-fast), opacity var(--motion-fast);
+    width: auto;
+    margin: 0;
   }
   .mobile-bottom-nav::before {
     content: '';
@@ -1935,6 +1937,11 @@ body.nav-sheet-open {
     transition: background 0.24s ease, box-shadow 0.24s ease;
   }
   #app.keyboard-open .mobile-bottom-nav {
+    transform: translateY(140%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  body.keyboard-open .mobile-bottom-nav {
     transform: translateY(140%);
     opacity: 0;
     pointer-events: none;
