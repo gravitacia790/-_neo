@@ -2,16 +2,12 @@ services:
   - type: web
     name: gravitacia-neo
     env: node
-    plan: starter
+    plan: free
     region: frankfurt
     autoDeploy: true
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
-    disk:
-      name: gravitacia-data
-      mountPath: /opt/render/project/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22
@@ -22,7 +18,7 @@ services:
       - key: TRUST_PROXY
         value: 1
       - key: DB_PATH
-        value: /opt/render/project/data/gravitacia.db
+        value: /tmp/gravitacia.db
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
