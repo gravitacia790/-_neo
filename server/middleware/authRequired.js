@@ -3,7 +3,7 @@ const { db } = require('../db');
 
 module.exports = function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = header.startsWith('Bearer ') ? header.slice(7) : (req.cookies && req.cookies.token) || null;
   if (!token) return res.status(401).json({ error: 'Требуется авторизация' });
   const payload = verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Недействительный токен' });

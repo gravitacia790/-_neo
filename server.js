@@ -1,15 +1,4 @@
-// Загружаем .env, если есть (без зависимости dotenv)
-try {
-  const fs = require('fs');
-  const path = require('path');
-  const envPath = path.join(__dirname, '.env');
-  if (fs.existsSync(envPath)) {
-    fs.readFileSync(envPath, 'utf8').split(/\r?\n/).forEach(line => {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    });
-  }
-} catch {}
+require('dotenv').config();
 
 const path = require('path');
 const express = require('express');
@@ -17,39 +6,129 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+const { validateConfig } = require('./server/config');
+const logger = require('./server/logger');
+const { db } = require('./server/db');
 
-const { init: initDb } = require('./server/db');
+const config = validateConfig(process.env);
+
+const { init: initDb, checkWeakAdminPassword } = require('./server/db');
+const { init: initWs } = require('./server/ws');
+// Dev-only: generate ADMIN_PASSWORD in memory before DB seed creates admin.
+checkWeakAdminPassword();
 initDb();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      'script-src': ["'self'", "'unsafe-inline'", "blob:"],
-      'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
-      'img-src': ["'self'", 'data:', 'blob:'],
-      'connect-src': ["'self'"],
-      'worker-src': ["'self'", 'blob:']
-    }
-  },
-  crossOriginEmbedderPolicy: false
-}));
+// When behind a reverse proxy (nginx/Caddy), trust X-Forwarded-*.
+app.set('trust proxy', config.TRUST_PROXY);
+
+// CORS — белый список из переменной окружения
+const ALLOWED_ORIGINS = config.ALLOWED_ORIGINS
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// In production we expect same-origin (UI + API on one host).
+// Keep CORS only for development/testing convenience.
+if (config.NODE_ENV !== 'production') {
+  app.use(
+    cors({
+      origin: function (origin, callback) {
+        if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) return callback(null, true);
+        callback(null, false);
+      },
+      credentials: true,
+    })
+  );
+}
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        'script-src': ["'self'", 'blob:'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        'img-src': ["'self'", 'data:', 'blob:'],
+        // Allow same-origin HTTPS/WSS (for API and WebSocket).
+        'connect-src': ["'self'", 'wss:', 'https:'],
+        'worker-src': ["'self'", 'blob:'],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 app.use(compression());
-app.use(morgan('dev'));
-app.use(cors());
+app.use(
+  morgan(function (tokens, req, res) {
+    return JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'info',
+      event: 'http.request',
+      method: tokens.method(req, res),
+      path: tokens.url(req, res),
+      status: Number(tokens.status(req, res)),
+      duration_ms: Number(tokens['response-time'](req, res)),
+    });
+  })
+);
+app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+app.get('/ready', (req, res) => {
+  try {
+    const version = db.prepare('SELECT sqlite_version() AS v').get();
+    const users = db.prepare('SELECT COUNT(*) AS c FROM users').get();
+    res.json({ status: 'ready', db: 'ok', sqliteVersion: version.v, users: users.c });
+  } catch (err) {
+    logger.error('readiness.failed', { message: err.message });
+    res.status(503).json({ status: 'not_ready', db: 'error' });
+  }
+});
+
+app.use(require('./server/middleware/csrf'));
+
+// Rate limiting для всех /api запросов
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов, попробуйте позже' },
+});
+app.use('/api', apiLimiter);
+
+// Более строгий лимит для аутентификации
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток входа, попробуйте через 15 минут' },
+});
+
+app.use('/api/auth', authLimiter);
 app.use('/api/auth', require('./server/routes/auth'));
 app.use('/api/profile', require('./server/routes/profile'));
 app.use('/api/directors', require('./server/routes/directors'));
 app.use('/api/events', require('./server/routes/events'));
 app.use('/api/extras', require('./server/routes/extras'));
 app.use('/api/ratings', require('./server/routes/ratings'));
+app.use('/api/notifications', require('./server/routes/notifications'));
 app.use('/api/admin', require('./server/routes/admin'));
+app.use('/api/messages', require('./server/routes/messages'));
+
+// Swagger / OpenAPI
+app.use('/api/docs', require('./server/routes/docs'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -57,12 +136,45 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Обработка ошибок
-app.use((err, req, res, next) => {
-  console.error('[error]', err);
-  res.status(err.status || 500).json({ error: err.message || 'Внутренняя ошибка' });
+app.get('/api/stats', (req, res) => {
+  const { db } = require('./server/db');
+  const count = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director'").get().c;
+  res.json({ directors: count });
 });
 
-app.listen(PORT, () => {
-  console.log(`Гравитация NEO запущена на http://localhost:${PORT}`);
+// Обработка ошибок
+app.use((err, req, res, _next) => {
+  logger.error('http.unhandled_error', { method: req.method, path: req.path, message: err.message });
+  res.status(err.status || 500).json({ error: 'Внутренняя ошибка сервера' });
 });
+
+const http = require('http');
+const server = http.createServer(app);
+initWs(server);
+
+server.listen(PORT, () => {
+  logger.info('server.started', {
+    port: PORT,
+    docs: `http://localhost:${PORT}/api/docs`,
+    ws: `ws://localhost:${PORT}/ws`,
+    corsOrigins: ALLOWED_ORIGINS,
+    nodeEnv: config.NODE_ENV,
+  });
+});
+
+function shutdown(signal) {
+  logger.warn('server.shutdown_started', { signal });
+  server.close(() => {
+    try {
+      db.close();
+    } catch (_) {
+      logger.warn('server.db_close_failed');
+    }
+    logger.info('server.shutdown_completed');
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

@@ -1,0 +1,50 @@
+const express = require('express');
+const { db } = require('../db');
+const authRequired = require('../middleware/authRequired');
+const { safe } = require('../middleware/safe');
+
+const router = express.Router();
+
+router.get('/', authRequired, safe('notifications')((req, res) => {
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+  const offset = (page - 1) * limit;
+
+  const total = db
+    .prepare('SELECT COUNT(*) AS c FROM notifications WHERE user_id = ?')
+    .get(req.user.id).c;
+
+  const unread = db
+    .prepare("SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND read = 0")
+    .get(req.user.id).c;
+
+  const items = db
+    .prepare(
+      'SELECT id, type, title, message, read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    )
+    .all(req.user.id, limit, offset);
+
+  res.json({
+    items,
+    unread,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+}));
+
+router.put('/read', authRequired, safe('notifications')((req, res) => {
+  const { ids } = req.body;
+  if (Array.isArray(ids) && ids.length > 0) {
+    const placeholders = ids.map(() => '?').join(',');
+    db.prepare(
+      `UPDATE notifications SET read = 1 WHERE id IN (${placeholders}) AND user_id = ?`
+    ).run(...ids, req.user.id);
+  }
+  res.json({ ok: true });
+}));
+
+router.put('/read-all', authRequired, safe('notifications')((req, res) => {
+  db.prepare("UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0").run(req.user.id);
+  res.json({ ok: true });
+}));
+
+module.exports = router;

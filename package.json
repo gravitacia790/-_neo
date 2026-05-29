@@ -6,9 +6,22 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "db:reset": "node server/db.js --reset"
+    "db:reset": "node server/db.js --reset",
+    "test": "vitest run",
+    "test:ci": "vitest run --reporter=verbose",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
-  "keywords": ["education", "community", "directors", "moscow-region"],
+  "keywords": [
+    "education",
+    "community",
+    "directors",
+    "moscow-region"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -18,12 +31,29 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "docx": "^9.6.1",
+    "dotenv": "^17.4.2",
     "express": "^4.21.0",
+    "express-rate-limit": "^8.5.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "ws": "^8.21.0",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.7"
   }
 }

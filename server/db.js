@@ -2,11 +2,12 @@ const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('bcryptjs');
+const logger = require('./logger');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const DB_PATH = path.join(DATA_DIR, 'gravitacia.db');
+const DB_PATH = process.env.TEST_DB_PATH || path.join(DATA_DIR, 'gravitacia.db');
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
@@ -20,7 +21,11 @@ db.transaction = function (fn) {
       db.exec('COMMIT');
       return result;
     } catch (err) {
-      try { db.exec('ROLLBACK'); } catch {}
+      try {
+        db.exec('ROLLBACK');
+      } catch (_) {
+        // ignore rollback errors, original error is more important
+      }
       throw err;
     }
   };
@@ -127,16 +132,22 @@ function migrate() {
 }
 
 function ensureAdmin() {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@gravitacia.ru';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminEmail || !adminPassword) {
+    if (!process.env.TEST_DB_PATH) {
+      console.log('[db] ADMIN_EMAIL/ADMIN_PASSWORD не заданы — администратор не создан');
+    }
+    return;
+  }
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail);
   if (!existing) {
     const hash = bcrypt.hashSync(adminPassword, 10);
-    const info = db.prepare(
-      `INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin')`
-    ).run(adminEmail, hash, 'Администратор');
+    const info = db
+      .prepare(`INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin')`)
+      .run(adminEmail, hash, 'Администратор');
     db.prepare('INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0)').run(info.lastInsertRowid);
-    console.log(`[db] Создан администратор: ${adminEmail} / ${adminPassword}`);
+    logger.info('db.admin_created', { email: adminEmail });
   }
 }
 
@@ -153,31 +164,45 @@ function seedDemoDirectors() {
       school: {
         name: 'МБОУ «Гимназия №11»',
         address: 'Химки, ул. Ленина, 11',
-        students: 1200, teachers: 85, type: 'Гимназия', building_count: 2,
-        useful_experience: '12 лет успешного руководства школой с высокими образовательными результатами (ТОП-50 школ МО).\nВнедрение системы наставничества для молодых педагогов, снижение текучести кадров на 35%.\nЭксперт по подготовке к государственной аккредитации и лицензированию.\nОрг��низация профильных инженерных и IT-классов в сотрудничеств�� с вузами.\nГрантовая деятельность: привлечено более 8 млн ₽ на модернизацию лабораторий.',
-        want_to_know: 'Цифровая трансформация школ: эффективные AI-инструменты для управленческого учёта.\nКак выстроить систему проектного обучения, интегрированную с региональными предприятиями.\nПрактики ментального здоровья педагогов: программы профилактики выгорания.\nКейсы по созданию автономии школы и внебюджетной деятельности.'
+        students: 1200,
+        teachers: 85,
+        type: 'Гимназия',
+        building_count: 2,
+        useful_experience:
+          '12 лет успешного руководства школой с высокими образовательными результатами (ТОП-50 школ МО).\nВнедрение системы наставничества для молодых педагогов, снижение текучести кадров на 35%.\nЭксперт по подготовке к государственной аккредитации и лицензированию.\nОрг��низация профильных инженерных и IT-классов в сотрудничеств�� с вузами.\nГрантовая деятельность: привлечено более 8 млн ₽ на модернизацию лабораторий.',
+        want_to_know:
+          'Цифровая трансформация школ: эффективные AI-инструменты для управленческого учёта.\nКак выстроить систему проектного обучения, интегрированную с региональными предприятиями.\nПрактики ментального здоровья педагогов: программы профилактики выгорания.\nКейсы по созданию автономии школы и внебюджетной деятельности.',
       },
       profile: {
         is_mentor: 1,
-        experience: 'Руководитель пилотного проекта «Школа полного дня» в Химках (охват 780 учеников).\nФиналист Всероссийского конкурса «Директор года – 2024».\nРазработала и внедрила систему «Цифровой помощник классного руководителя».',
-        interests: 'Современная педагогическая литература\nМедитация и осознанность для педагогов\nГрафический дизайн\nВелотуризм\nВолонтёрство в просветительских проектах',
+        experience:
+          'Руководитель пилотного проекта «Школа полного дня» в Химках (охват 780 учеников).\nФиналист Всероссийского конкурса «Директор года – 2024».\nРазработала и внедрила систему «Цифровой помощник классного руководителя».',
+        interests:
+          'Современная педагогическая литература\nМедитация и осознанность для педагогов\nГрафический дизайн\nВелотуризм\nВолонтёрство в просветительских проектах',
         strengths: [
           { name: 'Стратегическое планирование', val: 9.5 },
           { name: 'Управление персоналом и мотивация', val: 9.2 },
           { name: 'Финансовая эффективность / фандрайзинг', val: 8.8 },
           { name: 'Коммуникация с родительским сообществом', val: 9.7 },
-          { name: 'Развитие инклюзивной среды', val: 8.4 }
+          { name: 'Развитие инклюзивной среды', val: 8.4 },
         ],
         skills: [
           { name: 'Цифровая трансформация образования', level: 'Эксперт' },
           { name: 'Проектный менеджмент (гранты, дорожные карты)', level: 'Эксперт' },
           { name: 'Управление изменениями / конфликтология', level: 'Продвинутый' },
           { name: 'Бюджетирование и внебюджетная деятельность', level: 'Продвинутый' },
-          { name: 'Публичные выступления / образовательная аналитика', level: 'Эксперт' }
+          { name: 'Публичные выступления / образовательная аналитика', level: 'Эксперт' },
         ],
-        tags: ['#Стратегическое_планирование', '#Наставничество_педагогов', '#IT_класс', '#Гранты_образование', '#Школьное_лидерство', '#Инклюзия']
+        tags: [
+          '#Стратегическое_планирование',
+          '#Наставничество_педагогов',
+          '#IT_класс',
+          '#Гранты_образование',
+          '#Школьное_лидерство',
+          '#Инклюзия',
+        ],
       },
-      rating: 87
+      rating: 87,
     },
     {
       name: 'Анна Сергеевна Воронцова',
@@ -185,28 +210,35 @@ function seedDemoDirectors() {
       phone: '+7 (999) 222-22-22',
       city: 'Красногорск',
       school: {
-        name: 'Гимназия №3', address: 'Красногорск, ул. Школьная, 3',
-        students: 850, teachers: 60, type: 'Гимназия', building_count: 1,
-        useful_experience: 'Опыт внедрения инклюзивного образования, успешное прохождение аккредитации.\nСоздание ресурсного класса для детей с ОВЗ.\nВзаимодействие с родительским сообществом и общественными организациями.',
-        want_to_know: 'Цифровые платформы для управления школой, методики работы с молодыми педагогами.\nЭффективное наставничество для начинающих директоров.'
+        name: 'Гимназия №3',
+        address: 'Красногорск, ул. Школьная, 3',
+        students: 850,
+        teachers: 60,
+        type: 'Гимназия',
+        building_count: 1,
+        useful_experience:
+          'Опыт внедрения инклюзивного образования, успешное прохождение аккредитации.\nСоздание ресурсного класса для детей с ОВЗ.\nВзаимодействие с родительским сообществом и общественными организациями.',
+        want_to_know:
+          'Цифровые платформы для управления школой, методики работы с молодыми педагогами.\nЭффективное наставничество для начинающих директоров.',
       },
       profile: {
         is_mentor: 1,
-        experience: 'Успешно прошла 2 аккредитации, создала ресурсный класс для детей с ОВЗ.\nРуководитель муниципальной инновационной площадки по инклюзии.',
+        experience:
+          'Успешно прошла 2 аккредитации, создала ресурсный класс для детей с ОВЗ.\nРуководитель муниципальной инновационной площадки по инклюзии.',
         interests: 'Психология\nЧтение\nСадоводство',
         strengths: [
           { name: 'Стратегическое планирование', val: 8 },
           { name: 'Работа с родителями', val: 9 },
-          { name: 'Инклюзивное образование', val: 9.2 }
+          { name: 'Инклюзивное образование', val: 9.2 },
         ],
         skills: [
           { name: 'Управление персоналом', level: 'Продвинутый' },
           { name: 'Фандрайзинг', level: 'Средний' },
-          { name: 'Аккредитация и лицензирование', level: 'Эксперт' }
+          { name: 'Аккредитация и лицензирование', level: 'Эксперт' },
         ],
-        tags: ['#Инклюзия', '#Аккредитация', '#Родительский_комитет']
+        tags: ['#Инклюзия', '#Аккредитация', '#Родительский_комитет'],
       },
-      rating: 64
+      rating: 64,
     },
     {
       name: 'Дмитрий Павлович Громов',
@@ -214,28 +246,35 @@ function seedDemoDirectors() {
       phone: '+7 (999) 333-33-33',
       city: 'Долгопрудный',
       school: {
-        name: 'Лицей №10', address: 'Долгопрудный, ул. Науки, 10',
-        students: 700, teachers: 55, type: 'Лицей', building_count: 1,
-        useful_experience: 'Построение IT-лицея с нуля, привлечение грантов.\nОрганизация IT-классов и инженерных лабораторий.\nЦифровая трансформация образовательного процесса.',
-        want_to_know: 'Организация профильных классов, мотивация педагогов.\nСовременные методы проектного обучения и стартап-культуры в школе.'
+        name: 'Лицей №10',
+        address: 'Долгопрудный, ул. Науки, 10',
+        students: 700,
+        teachers: 55,
+        type: 'Лицей',
+        building_count: 1,
+        useful_experience:
+          'Построение IT-лицея с нуля, привлечение грантов.\nОрганизация IT-классов и инженерных лабораторий.\nЦифровая трансформация образовательного процесса.',
+        want_to_know:
+          'Организация профильных классов, мотивация педагогов.\nСовременные методы проектного обучения и стартап-культуры в школе.',
       },
       profile: {
         is_mentor: 0,
-        experience: 'Создал IT-лицей с нуля, выиграл грант на оборудование лабораторий.\nПобедитель конкурса инновационных школ Московской области.',
+        experience:
+          'Создал IT-лицей с нуля, выиграл грант на оборудование лабораторий.\nПобедитель конкурса инновационных школ Московской области.',
         interests: 'Программирование\nШахм��ты\nРобототехника',
         strengths: [
           { name: 'Цифровая трансформация', val: 9 },
           { name: 'Лидерство', val: 8.5 },
-          { name: 'Управление проектами', val: 9 }
+          { name: 'Управление проектами', val: 9 },
         ],
         skills: [
           { name: 'Проектный менеджмент', level: 'Эксперт' },
           { name: 'IT-инфраструктура', level: 'Эксперт' },
-          { name: 'Грантрайтинг', level: 'Продвинутый' }
+          { name: 'Грантрайтинг', level: 'Продвинутый' },
         ],
-        tags: ['#IT_лицей', '#Гранты', '#Цифровизация']
+        tags: ['#IT_лицей', '#Гранты', '#Цифровизация'],
       },
-      rating: 52
+      rating: 52,
     },
     {
       name: 'Екатерина Викторовна Морозова',
@@ -243,76 +282,117 @@ function seedDemoDirectors() {
       phone: '+7 (999) 444-44-44',
       city: 'Одинцово',
       school: {
-        name: 'СОШ №22', address: 'Одинцово, ул. Центральная, 22',
-        students: 950, teachers: 65, type: 'Средняя общеобразовательная', building_count: 1,
-        useful_experience: 'Создание школьного медиацентра, развитие волонтёрства.\nОрганизация школьного телевидения и медиаобразования.\nПривлечение волонтёров к социальным проектам.',
-        want_to_know: 'Эффективное наставничество для молодых директоров.\nСовременные инструменты медиапродвижения школы.'
+        name: 'СОШ №22',
+        address: 'Одинцово, ул. Центральная, 22',
+        students: 950,
+        teachers: 65,
+        type: 'Средняя общеобразовательная',
+        building_count: 1,
+        useful_experience:
+          'Создание школьного медиацентра, развитие волонтёрства.\nОрганизация школьного телевидения и медиаобразования.\nПривлечение волонтёров к социальным проектам.',
+        want_to_know:
+          'Эффективное наставничество для молодых директоров.\nСовременные инструменты медиапродвижения школы.',
       },
       profile: {
         is_mentor: 1,
-        experience: 'Запустила школьное телевидение, привлекла волонтёров к социальным проектам.\nЛауреат премии «Лучший медиапроект школы».',
+        experience:
+          'Запустила школьное телевидение, привлекла волонтёров к социальным проектам.\nЛауреат премии «Лучший медиапроект школы».',
         interests: 'Журналистика\nВолонтёрство\nФотография',
         strengths: [
           { name: 'Коммуникабельность', val: 9 },
           { name: 'Креативность', val: 8 },
-          { name: 'Организация мероприятий', val: 8.5 }
+          { name: 'Организация мероприятий', val: 8.5 },
         ],
         skills: [
           { name: 'Медиа', level: 'Продвинутый' },
           { name: 'Организация мероприятий', level: 'Продвинутый' },
-          { name: 'SMM и PR', level: 'Средний' }
+          { name: 'SMM и PR', level: 'Средний' },
         ],
-        tags: ['#Медиа', '#Волонтёрство', '#Школьное_ТВ']
+        tags: ['#Медиа', '#Волонтёрство', '#Школьное_ТВ'],
       },
-      rating: 41
-    }
+      rating: 41,
+    },
   ];
 
   const insertUser = db.prepare(
     `INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director')`
   );
   const insertProfile = db.prepare(
-    `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, strengths, skills, tags, city)
-     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`
+    `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
+     VALUES (?, ?, ?, ?, 1, ?)`
   );
+  const insertStrength = db.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
+  const insertSkill = db.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
+  const insertTag = db.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
   const insertSchool = db.prepare(
     `INSERT INTO schools (user_id, name, address, students, teachers, type, building_count, useful_experience, want_to_know)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  const insertRating = db.prepare(
-    `INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, ?, 1)`
-  );
+  const insertRating = db.prepare(`INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, ?, 1)`);
 
   const tx = db.transaction(() => {
     const hash = bcrypt.hashSync('demo1234', 10);
     for (const d of demos) {
       const info = insertUser.run(d.email, hash, d.name, d.phone);
       const uid = info.lastInsertRowid;
-      insertProfile.run(
-        uid,
-        d.profile.experience,
-        d.profile.interests,
-        d.profile.is_mentor,
-        JSON.stringify(d.profile.strengths),
-        JSON.stringify(d.profile.skills),
-        JSON.stringify(d.profile.tags),
-        d.city
-      );
+      insertProfile.run(uid, d.profile.experience, d.profile.interests, d.profile.is_mentor, d.city);
+      for (var sgi = 0; sgi < d.profile.strengths.length; sgi++) {
+        var sg = d.profile.strengths[sgi];
+        insertStrength.run(uid, sg.name, sg.val);
+      }
+      for (var ski = 0; ski < d.profile.skills.length; ski++) {
+        var sk = d.profile.skills[ski];
+        insertSkill.run(uid, sk.name, sk.level);
+      }
+      for (var tgi = 0; tgi < d.profile.tags.length; tgi++) {
+        insertTag.run(uid, d.profile.tags[tgi]);
+      }
       insertSchool.run(
-        uid, d.school.name, d.school.address, d.school.students, d.school.teachers,
-        d.school.type, d.school.building_count, d.school.useful_experience, d.school.want_to_know
+        uid,
+        d.school.name,
+        d.school.address,
+        d.school.students,
+        d.school.teachers,
+        d.school.type,
+        d.school.building_count,
+        d.school.useful_experience,
+        d.school.want_to_know
       );
       insertRating.run(uid, d.rating);
     }
   });
   tx();
-  console.log(`[db] Засидировано ${demos.length} демо-директоров (пароль: demo1234)`);
+  logger.info('db.demo_seeded', { directors: demos.length });
 }
 
 function init() {
   migrate();
+  const { runMigrations } = require('./migrate');
+  runMigrations();
   ensureAdmin();
   seedDemoDirectors();
+}
+
+function checkWeakAdminPassword() {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  if (process.env.TEST_DB_PATH) {
+    return;
+  }
+  if (process.env.ADMIN_PASSWORD) {
+    return;
+  }
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  var newPw = '';
+  for (var i = 0; i < 16; i++) {
+    newPw += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  process.env.ADMIN_PASSWORD = newPw;
+  logger.warn('config.admin_password_generated', {
+    generated: true,
+    hint: 'Set ADMIN_PASSWORD in .env for a stable dev admin password (not written to disk)',
+  });
 }
 
 if (require.main === module) {
@@ -326,4 +406,4 @@ if (require.main === module) {
   console.log('[db] Инициализация завершена');
 }
 
-module.exports = { db, init };
+module.exports = { db, init, checkWeakAdminPassword };

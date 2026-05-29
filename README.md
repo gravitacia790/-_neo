@@ -1,91 +1,128 @@
-# Гравитация
+# Гравитация NEO
 
 Профессиональное сообщество директоров школ Московской области.
 
 ## Стек
 
-- **Бэкенд:** Node.js + Express 4, SQLite (better-sqlite3), JWT-авторизация (bcryptjs), Zod-валидация, Multer для загрузки фото.
-- **Фронтенд:** ванильный JS + HTML + CSS, PWA (manifest + service worker).
-- **Безопасность:** helmet, compression, morgan, серверная проверка ролей.
+- **Бэкенд:** Node.js 22+ + Express 4, SQLite (`node:sqlite`), JWT в httpOnly cookie, Zod, WebSocket (`ws`).
+- **Фронтенд:** ванильный JS + HTML + CSS (same-origin с API).
+- **Безопасность:** helmet (CSP), CSRF double-submit, rate limit, bcrypt, structured logs.
 
-## Запуск
+## Запуск (development)
 
 ```bash
 npm install
-copy .env.example .env   # на Windows
-# отредактируйте JWT_SECRET в .env
+copy .env.example .env   # Windows
+# Задайте JWT_SECRET (мин. 32 символа) и ADMIN_* в .env
 npm start
 ```
 
 Откройте http://localhost:3000
 
-При первом запуске автоматически:
+При первом запуске:
 - создаётся БД `data/gravitacia.db`
-- создаётся администратор (email/пароль из `.env`)
-- сидируются 4 демо-директора с рейтингами
+- применяются SQL-миграции из `server/migrations/`
+- создаётся администратор (если заданы `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
+- сидируются 4 демо-директора (`elena@school11.ru` / `demo1234`)
+
+## Production (рекомендуемая схема)
+
+**Same-origin:** UI и API на одном домене. TLS на reverse-proxy (nginx/Caddy), Node слушает локально.
+
+```bash
+# .env
+NODE_ENV=production
+PORT=3000
+JWT_SECRET=<случайная строка 48+ символов>
+ADMIN_EMAIL=admin@example.ru
+ADMIN_PASSWORD=<сильный пароль 10+ символов>
+```
+
+```bash
+npm ci --omit=dev
+npm start
+```
+
+### nginx (пример)
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name gravitacia.example.ru;
+
+  ssl_certificate     /etc/letsencrypt/live/gravitacia.example.ru/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/gravitacia.example.ru/privkey.pem;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+  }
+}
+```
+
+Node использует `trust proxy` — cookie `Secure` и rate limit работают корректно за прокси.
+
+### Бэкапы
+
+Регулярно копируйте `data/gravitacia.db` (и `-wal`/`-shm` при активной БД).
+
+### Health checks
+
+- `GET /health` — процесс жив
+- `GET /ready` — SQLite доступна
+
+## Тесты
+
+```bash
+npm test
+```
 
 ## Структура проекта
 
 ```
-DS/
-├── server.js                # точка входа
+DS-neo/
+├── server.js
 ├── server/
-│   ├── db.js                # инициализация SQLite, миграции, сиды
-│   ├── auth.js              # JWT, bcrypt
-│   ├── middleware/
-│   │   ├── authRequired.js
-│   │   └── adminRequired.js
-│   └── routes/
-│       ├── auth.js          # /api/auth (login, register, me)
-│       ├── profile.js       # /api/profile (профиль + школа + фото)
-│       ├── directors.js     # /api/directors (список + детали)
-│       ├── events.js        # /api/events (CRUD + регистрации)
-│       ├── ratings.js       # /api/ratings
-│       ├── extras.js        # /api/extras (gl, internship, calendar)
-│       └── admin.js         # /api/admin
-├── public/
-│   ├── index.html
-│   ├── css/style.css
-│   ├── js/                  # фронт на fetch + JWT в localStorage
-│   └── uploads/             # фото директоров
-├── data/                    # SQLite-файл (создаётся автоматически)
-└── archive/                 # старые версии
+│   ├── db.js, migrate.js, auth.js, ws.js, config.js
+│   ├── middleware/   (authRequired, csrf, safe, adminRequired)
+│   ├── routes/       (auth, profile, directors, events, …)
+│   ├── services/
+│   └── migrations/
+├── public/           (SPA + js/api.js)
+├── data/             (SQLite, не в git)
+└── test/
 ```
 
-## API кратко
+## API (кратко)
 
 | Метод | URL | Описание |
 |-------|-----|----------|
 | POST | `/api/auth/register` | Регистрация |
-| POST | `/api/auth/login` | Вход, возвращает JWT |
+| POST | `/api/auth/login` | Вход (cookie `token`) |
+| POST | `/api/auth/logout` | Выход |
 | GET | `/api/auth/me` | Текущий пользователь |
-| GET / PUT | `/api/profile` | Получить / сохранить профиль директора |
-| POST | `/api/profile/photo` | Загрузить фото |
-| GET / PUT | `/api/profile/school` | Информация о школе |
-| GET | `/api/directors` | Все директора (с поиском `?q=...`) |
-| GET | `/api/directors/:id` | Детали |
-| GET | `/api/directors/mentors` | Только наставники |
-| GET / POST | `/api/events` | Список / создание |
-| POST | `/api/events/:id/register` | Записать сотрудника |
-| DELETE | `/api/events/:id` | Удалить (только своё) |
-| GET | `/api/extras/:category` | gl / internship / calendar |
-| POST | `/api/extras/:category/:eventId/register` | Запись на доп. программу |
-| GET | `/api/ratings/:email` | Рейтинг с проверкой видимости |
-| PUT | `/api/ratings/me/visibility` | Переключить публичность |
-| GET | `/api/admin/users` | Только для админа |
+| GET/PUT | `/api/profile` | Профиль |
+| GET | `/api/directors` | Список (`?q=`, `?page=`, `?limit=`) |
+| GET/POST | `/api/events` | Мероприятия |
+| GET | `/api/notifications` | Уведомления |
+| POST | `/api/messages` | Сообщения |
+| WS | `/ws` | Real-time (только с валидным `token`) |
 
-Все защищённые роуты требуют `Authorization: Bearer <token>`.
+Защищённые маршруты: cookie `token` **или** `Authorization: Bearer …`.
 
-## Что изменилось со версии 1.0
-
-- Данные больше **не** хранятся в `localStorage` каждого пользователя — теперь общая БД.
-- Авторизация серверная (bcrypt + JWT), а не «кто угодно может стать админом через DevTools».
-- `localStorage` на клиенте используется только для хранения JWT-токена и кэша текущего пользователя.
+Для POST/PUT/DELETE нужен CSRF: cookie `csrf` + заголовок `X-CSRF-Token` (фронт делает это в `public/js/api.js`).
 
 ## Безопасность
 
-- Пароли — bcryptjs (10 раундов).
-- JWT в `Authorization`-заголовке, срок жизни 7 дней.
-- Helmet с CSP под inline-скрипты текущего фронта.
-- Multer ограничен 1 МБ и только image/jpeg|png|webp.
-- Все входящие тела проходят валидацию Zod.
+- Пароли: bcrypt (10 раундов), блокировка после 5 неудачных входов.
+- JWT в **httpOnly** cookie, `SameSite=Strict` в production.
+- CSRF: double-submit (`csrf` cookie + `X-CSRF-Token`).
+- WebSocket: без валидного токена соединение закрывается (`1008`).
+- CORS в production отключён (ожидается same-origin).
+- Helmet CSP: `connect-src` включает `wss:` для WebSocket.

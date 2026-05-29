@@ -1,9 +1,9 @@
 // Утилита для просмотра содержимого БД из терминала.
-// Запуск: node inspect-db.js
+// Запуск: node scripts/inspect-db.js
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 
-const db = new DatabaseSync(path.join(__dirname, 'data', 'gravitacia.db'));
+const db = new DatabaseSync(path.join(__dirname, '..', 'data', 'gravitacia.db'));
 
 const tables = db.prepare(
   "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"

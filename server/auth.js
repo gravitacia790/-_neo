@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
-const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  console.error('[auth] FATAL: JWT_SECRET не задан в .env');
+  process.exit(1);
+}
 const TTL = '7d';
 
 function hashPassword(password) {
@@ -13,11 +17,7 @@ function verifyPassword(password, hash) {
 }
 
 function signToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    SECRET,
-    { expiresIn: TTL }
-  );
+  return jwt.sign({ id: user.id, email: user.email, role: user.role }, SECRET, { expiresIn: TTL });
 }
 
 function verifyToken(token) {

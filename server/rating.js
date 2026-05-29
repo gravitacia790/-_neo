@@ -9,9 +9,12 @@ function addActivity(userId, type, description, points) {
   ensureRatingRow(userId);
   const tx = db.transaction(() => {
     db.prepare('UPDATE ratings SET total_score = total_score + ? WHERE user_id = ?').run(points, userId);
-    db.prepare(
-      'INSERT INTO rating_activities (user_id, type, description, points) VALUES (?, ?, ?, ?)'
-    ).run(userId, type, description, points);
+    db.prepare('INSERT INTO rating_activities (user_id, type, description, points) VALUES (?, ?, ?, ?)').run(
+      userId,
+      type,
+      description,
+      points
+    );
     // оставим только 20 последних
     db.prepare(
       `DELETE FROM rating_activities WHERE user_id = ? AND id NOT IN (
@@ -25,15 +28,20 @@ function addActivity(userId, type, description, points) {
 function getRatingByUserId(userId) {
   ensureRatingRow(userId);
   const row = db.prepare('SELECT total_score, is_public FROM ratings WHERE user_id = ?').get(userId);
-  const activities = db.prepare(
-    'SELECT type, description, points, created_at FROM rating_activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
-  ).all(userId);
+  const activities = db
+    .prepare(
+      'SELECT type, description, points, created_at FROM rating_activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
+    )
+    .all(userId);
   return {
     totalScore: row ? row.total_score : 0,
     public: row ? !!row.is_public : false,
-    activities: activities.map(a => ({
-      type: a.type, description: a.description, points: a.points, date: a.created_at
-    }))
+    activities: activities.map((a) => ({
+      type: a.type,
+      description: a.description,
+      points: a.points,
+      date: a.created_at,
+    })),
   };
 }
 
