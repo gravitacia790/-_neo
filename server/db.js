@@ -4,10 +4,16 @@ const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('bcryptjs');
 const logger = require('./logger');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function resolveDbPath() {
+  if (process.env.TEST_DB_PATH) return process.env.TEST_DB_PATH;
+  if (process.env.DB_PATH) return process.env.DB_PATH;
+  return path.join(__dirname, '..', 'data', 'gravitacia.db');
+}
 
-const DB_PATH = process.env.TEST_DB_PATH || path.join(DATA_DIR, 'gravitacia.db');
+const DB_PATH = resolveDbPath();
+const DB_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');

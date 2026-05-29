@@ -68,6 +68,23 @@ server {
 
 Node использует `trust proxy` — cookie `Secure` и rate limit работают корректно за прокси.
 
+### Render (рекомендуется для быстрого production)
+
+В репозитории есть `render.yaml` (Blueprint) для веб-сервиса и persistent disk под SQLite.
+
+1. Загрузите изменения в GitHub.
+2. В Render: **New +** → **Blueprint** → выберите этот репозиторий.
+3. Render создаст сервис `gravitacia-neo` и диск `gravitacia-data`.
+4. В переменных окружения задайте:
+   - `ADMIN_EMAIL`
+   - `ADMIN_PASSWORD` (сильный, 10+ символов)
+5. Дождитесь первого деплоя и откройте URL сервиса.
+
+Важно:
+- SQLite хранится на диске по `DB_PATH=/opt/render/project/data/gravitacia.db`.
+- `JWT_SECRET` генерируется автоматически Blueprint-ом.
+- При free-plan сервис может "засыпать", первый запрос после сна медленнее.
+
 ### Бэкапы
 
 Регулярно копируйте `data/gravitacia.db` (и `-wal`/`-shm` при активной БД).
