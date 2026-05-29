@@ -2,7 +2,7 @@ services:
   - type: web
     name: gravitacia-neo
     env: node
-    plan: free
+    plan: starter
     region: frankfurt
     autoDeploy: true
     buildCommand: npm ci
