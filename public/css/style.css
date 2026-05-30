@@ -576,7 +576,11 @@ body::before {
   background: rgba(255, 255, 255, 0.96);
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -20px 48px rgba(33, 26, 24, 0.18);
-  padding: 12px 16px calc(20px + env(safe-area-inset-bottom));
+  padding: 12px 16px calc(96px + env(safe-area-inset-bottom));
+  max-height: min(78vh, 78dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   transform: translateY(100%);
   opacity: 0;
   transition: transform 0.26s ease, opacity 0.26s ease;
