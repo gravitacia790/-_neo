@@ -1,4 +1,4 @@
-/* global SHELLDOM */
+/* global SHELLDOM, bindDirectorSegments, bindFavoritesSort */
 var APP_RUNTIME = {
   tabsInitialized: false,
   msgButtonBound: false,
@@ -198,6 +198,8 @@ function initApp() {
 
   bindCreateEvent();
   bindDirectorSearch();
+  bindDirectorSegments();
+  bindFavoritesSort();
   loadCommunityStats();
   bindShellScrollEffects();
   bindViewportKeyboardAdaptation();

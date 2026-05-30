@@ -928,10 +928,12 @@ body.nav-sheet-open {
   border-radius: 40px;
   color: var(--text-primary);
   outline: none;
-  font-size: 0.9rem;
+  font-size: 16px;
   font-family: 'Manrope', sans-serif;
   transition: all 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow: var(--shadow-sm);
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .search-input:focus {
@@ -1206,6 +1208,91 @@ body.nav-sheet-open {
   display: flex;
   gap: 10px;
   margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.director-segments {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.directors-hint {
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.favorites-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.favorites-toolbar__label {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.favorites-toolbar__select {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  color: var(--text-primary);
+  background: var(--surface-soft);
+}
+
+.director-segment {
+  border: 1px solid rgba(161, 49, 58, 0.18);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.director-segment.active {
+  background: var(--crimson);
+  color: #fff;
+  border-color: var(--crimson);
+}
+
+.favorite-btn {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 40px;
+  border: 1.5px solid rgba(161, 49, 58, 0.24);
+  background: rgba(161, 49, 58, 0.06);
+  color: var(--crimson);
+  padding: 9px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Manrope', sans-serif;
+}
+
+.favorite-btn.active {
+  background: rgba(184, 149, 58, 0.18);
+  border-color: rgba(184, 149, 58, 0.45);
+  color: #5f4b17;
+}
+
+.director-card--compact .info-section {
+  display: none;
+}
+
+.favorite-note {
+  margin-top: 6px;
+  color: #7a5f1a;
+  font-size: 0.73rem;
+  font-weight: 700;
 }
 
 .event-actions {

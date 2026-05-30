@@ -28,7 +28,9 @@ function initTabs() {
   }
 
   function isMobileNav() {
-    return window.matchMedia('(max-width: 767px)').matches;
+    var mobileNav = document.getElementById('mobileBottomNav');
+    if (!mobileNav) return window.matchMedia('(max-width: 767px)').matches;
+    return window.getComputedStyle(mobileNav).display !== 'none';
   }
 
   function closeMoreMenus() {

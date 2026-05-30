@@ -1,4 +1,4 @@
-/* global SHELLDOM, OVERLAY */
+/* global SHELLDOM, OVERLAY, getUiErrorMessage */
 (function () {
   function updateMessageBadge(count) {
     SHELLDOM.syncBadge(SHELLDOM.byId('msgBadge'), count);
@@ -47,8 +47,8 @@
     API.getMessages().then(function (resp) {
       API.markAllMessagesRead().then(function () { updateMessageBadge(0); }).catch(function () {});
       renderMessagesList(list, resp.messages || []);
-    }).catch(function () {
-      list.innerHTML = '<div class="dropdown-empty-state">Ошибка загрузки</div>';
+    }).catch(function (err) {
+      list.innerHTML = '<div class="dropdown-empty-state">' + escapeHtml(getUiErrorMessage(err, 'Не удалось загрузить сообщения.')) + '</div>';
     });
   }
 

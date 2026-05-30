@@ -1,7 +1,8 @@
-/* global SHELLDOM, OVERLAY */
+/* global SHELLDOM, OVERLAY, getUiErrorMessage */
 var NOTIF = (function () {
   var UNREAD_KEY = 'unreadCount';
   var dropdownVisible = false;
+  var initialized = false;
 
   function getUnread() { return parseInt(localStorage.getItem(UNREAD_KEY) || '0', 10); }
   function setUnread(n) { localStorage.setItem(UNREAD_KEY, n); updateBadge(); }
@@ -52,8 +53,8 @@ var NOTIF = (function () {
           });
         });
       });
-    }).catch(function () {
-      list.innerHTML = '<div class="dropdown-empty-state">Ошибка загрузки</div>';
+    }).catch(function (err) {
+      list.innerHTML = '<div class="dropdown-empty-state">' + escapeHtml(getUiErrorMessage(err, 'Не удалось загрузить уведомления.')) + '</div>';
     });
   }
 
@@ -69,6 +70,8 @@ var NOTIF = (function () {
   }
 
   function init() {
+    if (initialized) return;
+    initialized = true;
     updateBadge();
     var bell = SHELLDOM.byId('notifBell');
     if (bell) bell.addEventListener('click', toggleDropdown);

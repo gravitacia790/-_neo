@@ -1,9 +1,12 @@
+/* global getUiErrorMessage, retryPromise, isRetriableApiError */
 function loadUserDataIntoForms() {
   var strengthsDiv = document.getElementById('strengthsList');
   var skillsDiv = document.getElementById('skillsList');
   if (!strengthsDiv || !skillsDiv) return Promise.resolve();
 
-  return API.getProfile()
+  return retryPromise(function () {
+    return API.getProfile();
+  }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
       var profile = resp.profile;
       var school = resp.school;
@@ -87,6 +90,7 @@ function loadUserDataIntoForms() {
     })
     .catch(function (err) {
       console.error('loadUserDataIntoForms', err);
-      notify('Ошибка загрузки профиля');
+      notify(getUiErrorMessage(err, 'Не удалось загрузить профиль.'));
+      throw err;
     });
 }

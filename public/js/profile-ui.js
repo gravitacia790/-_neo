@@ -85,6 +85,8 @@ window.addSkill = addSkill;
 function initPhotoUpload() {
   var fileInput = document.getElementById('directorPhoto');
   if (!fileInput) return;
+  if (fileInput.dataset.bound === 'true') return;
+  fileInput.dataset.bound = 'true';
   fileInput.addEventListener('change', function (e) {
     clearFormErrors(document.getElementById('profile'));
     var file = e.target.files[0];

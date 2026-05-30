@@ -134,6 +134,16 @@ function migrate() {
     CREATE INDEX IF NOT EXISTS idx_event_regs_event ON event_registrations(event_id);
     CREATE INDEX IF NOT EXISTS idx_extra_regs ON extra_registrations(category, event_id);
     CREATE INDEX IF NOT EXISTS idx_rating_acts_user ON rating_activities(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS director_favorites (
+      user_id INTEGER NOT NULL,
+      director_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, director_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (director_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_director_favorites_user ON director_favorites(user_id, created_at DESC);
   `);
 }
 

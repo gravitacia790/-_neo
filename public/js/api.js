@@ -119,6 +119,13 @@ var API = (function () {
     getMentors: function () {
       return request('GET', '/api/directors/mentors');
     },
+    getFavoriteDirectors: function (sort) {
+      var qs = sort ? ('?sort=' + encodeURIComponent(sort)) : '';
+      return request('GET', '/api/directors/favorites' + qs);
+    },
+    toggleDirectorFavorite: function (directorId) {
+      return request('POST', '/api/directors/' + directorId + '/favorite');
+    },
 
     getEvents: function () {
       return request('GET', '/api/events');

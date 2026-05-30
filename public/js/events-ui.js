@@ -4,6 +4,14 @@ function renderEventsState(container, type, text) {
     container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
     return;
   }
+  if (type === 'error') {
+    container.innerHTML =
+      '<div class="list-state is-error">' +
+      '<div class="list-state__text">' + escapeHtml(text) + '</div>' +
+      '<button class="ghost-btn retry-btn" data-action="retry-events">Повторить</button>' +
+      '</div>';
+    return;
+  }
   container.innerHTML = '<div class="list-state' + (type === 'error' ? ' is-error' : '') + '">' + escapeHtml(text) + '</div>';
 }
 

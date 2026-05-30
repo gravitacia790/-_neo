@@ -35,6 +35,45 @@ function notify(msg) {
   }, 3000);
 }
 
+function getUiErrorMessage(err, fallback) {
+  if (!err) return fallback || 'Произошла ошибка. Попробуйте еще раз.';
+  if (err.status === 401) return 'Сессия истекла. Войдите в аккаунт снова.';
+  if (err.status === 403) return 'Недостаточно прав для этого действия.';
+  if (err.status >= 500) return 'Сервис временно недоступен. Попробуйте немного позже.';
+  if (err.message && !/^HTTP \d+$/.test(err.message)) return err.message;
+  return fallback || 'Произошла ошибка. Попробуйте еще раз.';
+}
+
+function isRetriableApiError(err) {
+  if (!err) return true;
+  if (!err.status) return true;
+  return err.status >= 500;
+}
+
+function retryPromise(factory, options) {
+  options = options || {};
+  var attempts = Math.max(1, options.attempts || 1);
+  var delayMs = Math.max(0, options.delayMs || 0);
+  var shouldRetry = options.shouldRetry || isRetriableApiError;
+  var attempt = 0;
+
+  function run() {
+    attempt += 1;
+    return Promise.resolve()
+      .then(function () {
+        return factory();
+      })
+      .catch(function (err) {
+        if (attempt >= attempts || !shouldRetry(err)) throw err;
+        return new Promise(function (resolve) {
+          setTimeout(resolve, delayMs);
+        }).then(run);
+      });
+  }
+
+  return run();
+}
+
 function showModal(title, contentHtml) {
   var overlay = document.createElement('div');
   overlay.className = 'modal-overlay';

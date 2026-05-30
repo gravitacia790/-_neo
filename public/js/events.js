@@ -1,8 +1,11 @@
+/* global getUiErrorMessage, retryPromise, isRetriableApiError */
 function renderEvents() {
   var container = document.getElementById('eventsList');
   if (!container) return;
   renderEventsState(container, 'loading');
-  API.getEvents()
+  retryPromise(function () {
+    return API.getEvents();
+  }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
       var events = resp.events;
       if (!events.length) {
@@ -14,6 +17,8 @@ function renderEvents() {
       bindEventListActions(container);
     })
     .catch(function (err) {
-      renderEventsState(container, 'error', err.message || 'Ошибка загрузки мероприятий');
+      renderEventsState(container, 'error', getUiErrorMessage(err, 'Не удалось загрузить мероприятия.'));
+      var retryBtn = container.querySelector('[data-action="retry-events"]');
+      if (retryBtn) retryBtn.addEventListener('click', renderEvents);
     });
 }

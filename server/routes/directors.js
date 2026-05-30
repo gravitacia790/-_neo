@@ -22,6 +22,24 @@ router.get(
 );
 
 router.get(
+  '/favorites',
+  authRequired,
+  safe('directors')((req, res) => {
+    res.json(directorsService.listFavorites(req.user, req.query));
+  })
+);
+
+router.post(
+  '/:id/favorite',
+  authRequired,
+  safe('directors')((req, res) => {
+    var result = directorsService.toggleFavorite(req.user, req.params.id);
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json(result);
+  })
+);
+
+router.get(
   '/:id',
   authRequired,
   safe('directors')((req, res) => {
