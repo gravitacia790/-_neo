@@ -19,7 +19,11 @@ const { init: initWs } = require('./server/ws');
 // Dev-only: generate ADMIN_PASSWORD in memory before DB seed creates admin.
 checkWeakAdminPassword();
 initDb().catch((err) => {
-  logger.error('db.init_failed', { message: err.message });
+  logger.error('db.init_failed', {
+    message: err && err.message ? err.message : String(err),
+    stack: err && err.stack ? err.stack : null,
+    code: err && err.code ? err.code : null,
+  });
   process.exit(1);
 });
 
