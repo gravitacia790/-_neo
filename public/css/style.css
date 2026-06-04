@@ -2039,6 +2039,9 @@ body.nav-sheet-open {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
     transition: background 0.24s ease, box-shadow 0.24s ease;
   }
+  .main-content.swipe-back-settle {
+    animation: swipeBackSettle 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
   #app.keyboard-open .mobile-bottom-nav {
     transform: translateY(140%);
     opacity: 0;
@@ -2088,6 +2091,15 @@ body.nav-sheet-open {
   }
   .nav-sheet__subtitle {
     max-width: none;
+  }
+}
+
+@keyframes swipeBackSettle {
+  0% {
+    transform: translateX(18px);
+  }
+  100% {
+    transform: translateX(0);
   }
 }
 
