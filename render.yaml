@@ -17,11 +17,20 @@ services:
         value: 10000
       - key: TRUST_PROXY
         value: 1
-      - key: DB_PATH
-        value: /tmp/gravitacia.db
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gravitacia-neo-db
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+
+databases:
+  - name: gravitacia-neo-db
+    plan: free
+    region: frankfurt
+    databaseName: gravitacia
+    user: gravitacia
