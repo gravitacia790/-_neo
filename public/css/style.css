@@ -88,6 +88,10 @@ body::before {
   display: none;
 }
 
+#app[data-app-state='splash'] #mobileBottomNav {
+  display: none !important;
+}
+
 #app[data-app-state='splash'] .auth-buttons {
   opacity: 1;
   visibility: visible;
@@ -225,8 +229,8 @@ body::before {
   letter-spacing: 2px;
   color: var(--text-secondary);
   margin-top: 2px;
-  animation: fadeUp 0.8s 0.15s forwards;
-  opacity: 0;
+  animation: fadeUp 0.8s 0.15s both;
+  opacity: 1;
   position: relative;
   padding: 0 14px;
 }
@@ -252,8 +256,8 @@ body::before {
 .tagline {
   font-size: 1rem;
   color: #7f7b89;
-  animation: fadeUp 0.8s 0.3s forwards;
-  opacity: 0;
+  animation: fadeUp 0.8s 0.3s both;
+  opacity: 1;
   max-width: 300px;
   line-height: 1.6;
   font-weight: 600;
@@ -264,8 +268,8 @@ body::before {
   line-height: 1.55;
   color: var(--text-secondary);
   max-width: 320px;
-  animation: fadeUp 0.8s 0.38s forwards;
-  opacity: 0;
+  animation: fadeUp 0.8s 0.38s both;
+  opacity: 1;
 }
 
 .auth-buttons {
@@ -273,8 +277,8 @@ body::before {
   gap: 12px;
   justify-content: center;
   margin-top: 22px;
-  animation: fadeUp 0.8s 0.5s forwards;
-  opacity: 0;
+  animation: fadeUp 0.8s 0.5s both;
+  opacity: 1;
   width: 100%;
   max-width: 320px;
 }
@@ -340,8 +344,8 @@ body::before {
   padding: 12px 18px;
   border-radius: 18px;
   box-shadow: var(--premium-ring), 0 14px 30px rgba(28, 26, 40, 0.07);
-  animation: fadeUp 0.8s 0.62s forwards;
-  opacity: 0;
+  animation: fadeUp 0.8s 0.62s both;
+  opacity: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -388,8 +392,8 @@ body::before {
   align-items: center;
   font-size: 0.8rem;
   color: var(--text-secondary);
-  animation: fadeUp 0.8s 0.56s forwards;
-  opacity: 0;
+  animation: fadeUp 0.8s 0.56s both;
+  opacity: 1;
   width: 100%;
   max-width: 300px;
   box-shadow: var(--shadow-sm);
@@ -1943,6 +1947,9 @@ body.nav-sheet-open {
     transition: transform var(--motion-fast), opacity var(--motion-fast);
     width: auto;
     margin: 0;
+  }
+  .mobile-bottom-nav[hidden] {
+    display: none !important;
   }
   .mobile-bottom-nav::before {
     content: '';
