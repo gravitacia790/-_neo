@@ -19,6 +19,7 @@ function initTabs() {
   var sheetTouchCurrentY = 0;
   var sheetDragging = false;
   var activeTabId = 'profile';
+  var navHistory = [];
   var swipeTrack = null;
 
   function setSheetDragProgress(delta) {
@@ -74,6 +75,22 @@ function initTabs() {
     return moreTabs.indexOf(tabId) !== -1;
   }
 
+  function canGoBackInHistory() {
+    return navHistory.length > 0;
+  }
+
+  function popHistoryTarget() {
+    if (!canGoBackInHistory()) return null;
+    return navHistory.pop();
+  }
+
+  function pushHistory(fromTab) {
+    if (!fromTab) return;
+    if (navHistory[navHistory.length - 1] === fromTab) return;
+    navHistory.push(fromTab);
+    if (navHistory.length > 30) navHistory.shift();
+  }
+
   function openMoreSheetOnly() {
     if (!isMobileNav()) return;
     if (moreSheet) {
@@ -94,7 +111,7 @@ function initTabs() {
 
     mainContent.addEventListener('touchstart', function (e) {
       if (!isMobileNav() || !e.touches || !e.touches.length) return;
-      if (!isMoreTab(activeTabId)) {
+      if (document.body.classList.contains('nav-sheet-open')) {
         swipeTrack = null;
         return;
       }
@@ -103,8 +120,24 @@ function initTabs() {
         x: t.clientX,
         y: t.clientY,
         startedAt: Date.now(),
-        edgeStart: t.clientX <= 32,
+        edgeStart: t.clientX <= 28,
+        dragging: false,
       };
+    }, { passive: true });
+
+    mainContent.addEventListener('touchmove', function (e) {
+      if (!swipeTrack || !swipeTrack.edgeStart || !e.touches || !e.touches.length) return;
+      var t = e.touches[0];
+      var deltaX = Math.max(0, t.clientX - swipeTrack.x);
+      var deltaY = t.clientY - swipeTrack.y;
+      var horizontalEnough = deltaX > 14 && deltaX > Math.abs(deltaY) * 1.15;
+      if (!horizontalEnough) return;
+
+      swipeTrack.dragging = true;
+      var shift = Math.min(deltaX, 96);
+      mainContent.style.transition = 'none';
+      mainContent.style.transform = 'translateX(' + shift + 'px)';
+      mainContent.style.opacity = String(1 - Math.min(shift / 480, 0.18));
     }, { passive: true });
 
     mainContent.addEventListener('touchend', function (e) {
@@ -113,20 +146,45 @@ function initTabs() {
       var deltaX = t.clientX - swipeTrack.x;
       var deltaY = t.clientY - swipeTrack.y;
       var elapsed = Date.now() - swipeTrack.startedAt;
-      var shouldGoBack =
+      var isValidSwipe =
         swipeTrack.edgeStart &&
         deltaX > 88 &&
         deltaX > Math.abs(deltaY) * 1.4 &&
         Math.abs(deltaY) < 72 &&
         elapsed < 1000;
 
+      var hasDragged = swipeTrack.dragging;
       swipeTrack = null;
-      if (!shouldGoBack) return;
+      if (hasDragged) {
+        mainContent.style.transition = 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease';
+        mainContent.style.transform = '';
+        mainContent.style.opacity = '';
+        window.setTimeout(function () {
+          mainContent.style.transition = '';
+        }, 260);
+      }
+      if (!isValidSwipe) return;
 
-      openMoreSheetOnly();
+      if (isMoreTab(activeTabId)) {
+        openMoreSheetOnly();
+        return;
+      }
+
+      if (canGoBackInHistory()) {
+        var prevTab = popHistoryTarget();
+        if (prevTab) switchTab(prevTab, { trackHistory: false });
+      }
     }, { passive: true });
 
     mainContent.addEventListener('touchcancel', function () {
+      if (swipeTrack && swipeTrack.dragging) {
+        mainContent.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+        mainContent.style.transform = '';
+        mainContent.style.opacity = '';
+        window.setTimeout(function () {
+          mainContent.style.transition = '';
+        }, 240);
+      }
       swipeTrack = null;
     }, { passive: true });
   }
@@ -143,7 +201,16 @@ function initTabs() {
     mainContent.setAttribute('data-active-tab', tabId);
   }
 
-  function switchTab(tabId) {
+  function switchTab(tabId, opts) {
+    opts = opts || {};
+    var trackHistory = opts.trackHistory !== false;
+    if (!tabId || allTabs.indexOf(tabId) === -1) return;
+    if (activeTabId === tabId) {
+      closeMoreMenus();
+      return;
+    }
+    if (trackHistory) pushHistory(activeTabId);
+
     allTabs.forEach(function (id) {
       var el = document.getElementById(id);
       if (el && el.classList.contains('active')) {
@@ -268,7 +335,7 @@ function initTabs() {
   });
 
   bindMobileSwipeBack();
-  switchTab('profile');
+  switchTab('profile', { trackHistory: false });
 }
 
 function initPWA() {

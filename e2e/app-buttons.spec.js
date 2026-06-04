@@ -274,5 +274,39 @@ test.describe('UI buttons DB flows', () => {
     await expect(page.locator('#moreSheet')).toBeVisible();
     await context.close();
   });
+
+  test('mobile edge swipe navigates back between primary tabs', async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    await registerOrLogin(page);
+
+    await page.click('button[data-tab="events"]');
+    await expect(page.locator('#events.active')).toBeVisible();
+    await page.click('button[data-tab="directors"]');
+    await expect(page.locator('#directors.active')).toBeVisible();
+
+    const main = page.locator('#mainContent');
+    await main.dispatchEvent('touchstart', {
+      touches: [{ identifier: 3, clientX: 16, clientY: 280 }],
+      changedTouches: [{ identifier: 3, clientX: 16, clientY: 280 }],
+    });
+    await main.dispatchEvent('touchmove', {
+      touches: [{ identifier: 3, clientX: 120, clientY: 286 }],
+      changedTouches: [{ identifier: 3, clientX: 120, clientY: 286 }],
+    });
+    await main.dispatchEvent('touchend', {
+      touches: [],
+      changedTouches: [{ identifier: 3, clientX: 176, clientY: 292 }],
+    });
+
+    await expect(page.locator('#events.active')).toBeVisible();
+    await context.close();
+  });
 });
 
