@@ -4,8 +4,16 @@ var NOTIF = (function () {
   var dropdownVisible = false;
   var initialized = false;
 
-  function getUnread() { return parseInt(localStorage.getItem(UNREAD_KEY) || '0', 10); }
-  function setUnread(n) { localStorage.setItem(UNREAD_KEY, n); updateBadge(); }
+  function getUnread() {
+    var parsed = parseInt(localStorage.getItem(UNREAD_KEY) || '0', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+  function setUnread(n) {
+    var normalized = Number.isFinite(Number(n)) ? Number(n) : 0;
+    if (normalized < 0) normalized = 0;
+    localStorage.setItem(UNREAD_KEY, String(normalized));
+    updateBadge();
+  }
 
   function updateBadge() {
     var count = getUnread();
@@ -75,6 +83,13 @@ var NOTIF = (function () {
     updateBadge();
     var bell = SHELLDOM.byId('notifBell');
     if (bell) bell.addEventListener('click', toggleDropdown);
+    API.getNotifications()
+      .then(function (resp) {
+        setUnread(resp && typeof resp.unread === 'number' ? resp.unread : 0);
+      })
+      .catch(function () {
+        setUnread(0);
+      });
     OVERLAY.closeOnOutside(SHELLDOM.byId('notifDropdown'), bell, function () { return dropdownVisible; }, closeDropdown);
     OVERLAY.closeOnEscape(closeDropdown);
     WS.onNotification = onNewNotification;

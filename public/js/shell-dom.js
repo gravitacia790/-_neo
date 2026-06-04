@@ -20,8 +20,10 @@ var SHELLDOM = (function () {
 
   function syncBadge(el, count) {
     if (!el) return;
-    setText(el, count > 99 ? '99+' : count || '');
-    setHidden(el, count <= 0);
+    var normalized = Number.isFinite(Number(count)) ? Number(count) : 0;
+    if (normalized < 0) normalized = 0;
+    setText(el, normalized > 99 ? '99+' : (normalized || ''));
+    setHidden(el, normalized <= 0);
   }
 
   function syncAdminVisibility(isVisible) {
