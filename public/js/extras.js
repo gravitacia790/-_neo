@@ -79,6 +79,22 @@
         var monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
         var dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         var eventsByDay = {};
+        function toIsoDate(value) {
+          if (!value) return null;
+          var str = String(value).trim().toLowerCase();
+          var iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
+          var ru = str.match(/(\d{1,2})\s+([а-яё]+)\s+(\d{4})/i);
+          if (ru) {
+            var day = parseInt(ru[1], 10);
+            var month = russianMonths[ru[2].toLowerCase()];
+            var year = parseInt(ru[3], 10);
+            if (!Number.isNaN(day) && !Number.isNaN(year) && month !== undefined) {
+              return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+            }
+          }
+          return null;
+        }
         function addToDay(key, title, desc, dateStr) {
           if (!eventsByDay[key]) eventsByDay[key] = [];
           eventsByDay[key].push({ title: title, desc: desc, dateStr: dateStr });
@@ -95,8 +111,8 @@
           }
         });
         apiEvents.forEach(function (ev) {
-          var iso = ev.date.match(/^(\d{4}-\d{2}-\d{2})/);
-          if (iso) addToDay(iso[1], ev.title, ev.description, ev.date);
+          var isoKey = toIsoDate(ev.date);
+          if (isoKey) addToDay(isoKey, ev.title, ev.description, ev.date);
         });
         var fuzzyItems = catalogItems.filter(function (item) { return !item.date.match(/^\d/); });
         var firstDay = new Date(year, month, 1).getDay();

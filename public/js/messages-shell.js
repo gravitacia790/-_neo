@@ -19,13 +19,27 @@
     messages.forEach(function (m) {
       var currentUser = API.getUser();
       var otherName = m.from_user_id === (currentUser && currentUser.id) ? m.to_name : m.from_name;
+      var otherId = m.from_user_id === (currentUser && currentUser.id) ? m.to_user_id : m.from_user_id;
       html += '<div class="msg-item' + (m.read ? '' : ' msg-item-unread') + '">' +
         '<div class="msg-from">' + escapeHtml(otherName) + '</div>' +
         '<div class="msg-text">' + escapeHtml(m.text) + '</div>' +
         '<div class="msg-time">' + escapeHtml(m.created_at) + '</div>' +
+        '<div style="margin-top:8px;display:flex;justify-content:flex-end;">' +
+        '<button class="notif-header-action" data-action="reply" data-user-id="' + escapeAttr(otherId) + '" data-user-name="' + escapeAttr(otherName) + '">Ответить</button>' +
+        '</div>' +
         '</div>';
     });
     list.innerHTML = html;
+    list.querySelectorAll('[data-action="reply"]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var uid = parseInt(btn.getAttribute('data-user-id'), 10);
+        var uname = btn.getAttribute('data-user-name') || 'Пользователь';
+        if (!uid) return;
+        closeMsgDropdown();
+        showMessageModal(uid, uname);
+      });
+    });
   }
 
   function closeMsgDropdown() {
