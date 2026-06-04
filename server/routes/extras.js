@@ -4,6 +4,8 @@ const { db } = require('../db');
 const authRequired = require('../middleware/authRequired');
 const { addActivity } = require('../rating');
 const { safe } = require('../middleware/safe');
+const { broadcastAndInsert } = require('../ws');
+const { sendPushToMany } = require('../push');
 
 const router = express.Router();
 
@@ -79,11 +81,11 @@ const regSchema = z.object({
 router.get(
   '/:category',
   authRequired,
-  safe('extras')((req, res) => {
+  safe('extras')(async (req, res) => {
     const cat = req.params.category;
     if (!CATALOG[cat]) return res.status(404).json({ error: 'Категория не найдена' });
-    const items = CATALOG[cat].map((item) => {
-      const regs = db
+    const items = await Promise.all(CATALOG[cat].map(async (item) => {
+      const regs = await db
         .prepare(
           'SELECT employee_name, position, school_name, registered_at FROM extra_registrations WHERE category = ? AND event_id = ? ORDER BY registered_at'
         )
@@ -97,7 +99,7 @@ router.get(
           registeredAt: r.registered_at,
         })),
       };
-    });
+    }));
     res.json({ items });
   })
 );
@@ -105,7 +107,7 @@ router.get(
 router.post(
   '/:category/:eventId/register',
   authRequired,
-  safe('extras')((req, res) => {
+  safe('extras')(async (req, res) => {
     const cat = req.params.category;
     if (!CATALOG[cat]) return res.status(404).json({ error: 'Категория не найдена' });
     const item = CATALOG[cat].find((e) => e.id === req.params.eventId);
@@ -113,11 +115,36 @@ router.post(
     const parsed = regSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
     const { employeeName, position, schoolName } = parsed.data;
-    db.prepare(
+    await db.prepare(
       `INSERT INTO extra_registrations (category, event_id, employee_name, position, school_name, registered_by)
      VALUES (?, ?, ?, ?, ?, ?)`
     ).run(cat, item.id, employeeName, position, schoolName, req.user.id);
-    addActivity(req.user.id, 'participation', `Зарегистрировал(а) ${employeeName} на "${item.title}" (${cat})`, 2);
+    await addActivity(req.user.id, 'participation', `Зарегистрировал(а) ${employeeName} на "${item.title}" (${cat})`, 2);
+    const typeMap = {
+      gl: 'gl_registered',
+      internship: 'internship_registered',
+      calendar: 'calendar_registered',
+    };
+    const titleMap = {
+      gl: 'Новая регистрация в ГЛ',
+      internship: 'Новая регистрация в стажировке',
+      calendar: 'Новая регистрация в календарном событии',
+    };
+    const eventType = typeMap[cat] || 'extras_registered';
+    const notifTitle = titleMap[cat] || 'Новая регистрация';
+    const notifMessage = `${employeeName} зарегистрирован(а) на "${item.title}"`;
+    await broadcastAndInsert(eventType, notifTitle, notifMessage, req.user.id);
+    const recipients = await db.prepare('SELECT id FROM users WHERE id != ?').all(req.user.id);
+    await sendPushToMany(
+      recipients.map((r) => r.id),
+      {
+        type: eventType,
+        title: notifTitle,
+        body: notifMessage,
+        url: '/',
+        tag: `${eventType}:${cat}:${item.id}`,
+      }
+    );
     res.json({ ok: true });
   })
 );

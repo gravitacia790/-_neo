@@ -1,34 +1,40 @@
 const { db } = require('./db');
 
-function ensureRatingRow(userId) {
-  db.prepare('INSERT OR IGNORE INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0)').run(userId);
+async function ensureRatingRow(userId) {
+  await db
+    .prepare(
+      'INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0) ON CONFLICT (user_id) DO NOTHING'
+    )
+    .run(userId);
 }
 
-function addActivity(userId, type, description, points) {
+async function addActivity(userId, type, description, points) {
   if (!userId) return;
-  ensureRatingRow(userId);
-  const tx = db.transaction(() => {
-    db.prepare('UPDATE ratings SET total_score = total_score + ? WHERE user_id = ?').run(points, userId);
-    db.prepare('INSERT INTO rating_activities (user_id, type, description, points) VALUES (?, ?, ?, ?)').run(
+  await ensureRatingRow(userId);
+  const tx = db.transaction(async (trx) => {
+    await trx.prepare('UPDATE ratings SET total_score = total_score + ? WHERE user_id = ?').run(points, userId);
+    await trx
+      .prepare('INSERT INTO rating_activities (user_id, type, description, points) VALUES (?, ?, ?, ?)')
+      .run(
       userId,
       type,
       description,
       points
     );
     // оставим только 20 последних
-    db.prepare(
+    await trx.prepare(
       `DELETE FROM rating_activities WHERE user_id = ? AND id NOT IN (
         SELECT id FROM rating_activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 20
       )`
     ).run(userId, userId);
   });
-  tx();
+  await tx();
 }
 
-function getRatingByUserId(userId) {
-  ensureRatingRow(userId);
-  const row = db.prepare('SELECT total_score, is_public FROM ratings WHERE user_id = ?').get(userId);
-  const activities = db
+async function getRatingByUserId(userId) {
+  await ensureRatingRow(userId);
+  const row = await db.prepare('SELECT total_score, is_public FROM ratings WHERE user_id = ?').get(userId);
+  const activities = await db
     .prepare(
       'SELECT type, description, points, created_at FROM rating_activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 20'
     )
@@ -45,9 +51,9 @@ function getRatingByUserId(userId) {
   };
 }
 
-function setVisibility(userId, isPublic) {
-  ensureRatingRow(userId);
-  db.prepare('UPDATE ratings SET is_public = ? WHERE user_id = ?').run(isPublic ? 1 : 0, userId);
+async function setVisibility(userId, isPublic) {
+  await ensureRatingRow(userId);
+  await db.prepare('UPDATE ratings SET is_public = ? WHERE user_id = ?').run(isPublic ? 1 : 0, userId);
 }
 
 module.exports = { addActivity, getRatingByUserId, setVisibility, ensureRatingRow };

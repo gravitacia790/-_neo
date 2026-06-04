@@ -4,7 +4,7 @@
 
 ## Стек
 
-- **Бэкенд:** Node.js 22+ + Express 4, SQLite (`node:sqlite`), JWT в httpOnly cookie, Zod, WebSocket (`ws`).
+- **Бэкенд:** Node.js 22+ + Express 4, PostgreSQL (`pg`), JWT в httpOnly cookie, Zod, WebSocket (`ws`).
 - **Фронтенд:** ванильный JS + HTML + CSS (same-origin с API).
 - **Безопасность:** helmet (CSP), CSRF double-submit, rate limit, bcrypt, structured logs.
 
@@ -20,8 +20,7 @@ npm start
 Откройте http://localhost:3000
 
 При первом запуске:
-- создаётся БД `data/gravitacia.db`
-- применяются SQL-миграции из `server/migrations/`
+- создаются таблицы в PostgreSQL (если отсутствуют)
 - создаётся администратор (если заданы `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
 - сидируются 4 демо-директора (`elena@school11.ru` / `demo1234`)
 
@@ -34,6 +33,7 @@ npm start
 NODE_ENV=production
 PORT=3000
 JWT_SECRET=<случайная строка 48+ символов>
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/gravitacia
 ADMIN_EMAIL=admin@example.ru
 ADMIN_PASSWORD=<сильный пароль 10+ символов>
 ```
@@ -70,7 +70,7 @@ Node использует `trust proxy` — cookie `Secure` и rate limit раб
 
 ### Render (рекомендуется для быстрого production)
 
-В репозитории есть `render.yaml` (Blueprint) для веб-сервиса и persistent disk под SQLite.
+В репозитории есть `render.yaml` (Blueprint) для веб-сервиса.
 
 1. Загрузите изменения в GitHub.
 2. В Render: **New +** → **Blueprint** → выберите этот репозиторий.
@@ -81,30 +81,26 @@ Node использует `trust proxy` — cookie `Secure` и rate limit раб
 5. Дождитесь первого деплоя и откройте URL сервиса.
 
 Важно:
-- SQLite хранится на диске по `DB_PATH=/opt/render/project/data/gravitacia.db`.
-- `JWT_SECRET` генерируется автоматически Blueprint-ом.
-- При free-plan сервис может "засыпать", первый запрос после сна медленнее.
-
-### Render Free (временный демо-вариант)
-
-Если нужен бесплатный запуск, используйте тот же `render.yaml` в режиме Free:
-
-- `plan: free`
-- `DB_PATH=/tmp/gravitacia.db`
-
-Ограничения Free-демо:
-- база может сбрасываться при рестарте/пересоздании инстанса;
-- сервис может "засыпать", первый запрос медленнее;
-- подходит для проверки интерфейса и сценариев, но не для постоянной эксплуатации.
+- задайте `DATABASE_URL` в переменных окружения сервиса;
+- `JWT_SECRET` генерируется автоматически Blueprint-ом;
+- при free-plan сервис может "засыпать", первый запрос после сна медленнее.
 
 ### Бэкапы
 
-Регулярно копируйте `data/gravitacia.db` (и `-wal`/`-shm` при активной БД).
+Используйте бэкапы PostgreSQL (dump/snapshot) на стороне вашего PostgreSQL-провайдера.
 
 ### Health checks
 
 - `GET /health` — процесс жив
-- `GET /ready` — SQLite доступна
+- `GET /ready` — PostgreSQL доступна
+
+### Миграции PostgreSQL
+
+```bash
+npm run db:migrate          # применить up-миграции
+npm run db:migrate:status   # статус миграций
+npm run db:migrate:down     # откатить 1 миграцию
+```
 
 ## Тесты
 
@@ -124,7 +120,6 @@ DS-neo/
 │   ├── services/
 │   └── migrations/
 ├── public/           (SPA + js/api.js)
-├── data/             (SQLite, не в git)
 └── test/
 ```
 

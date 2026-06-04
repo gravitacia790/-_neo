@@ -4,12 +4,13 @@ const { db } = require('../db');
 const { addActivity } = require('../rating');
 const { reindexDirector } = require('./directorsService');
 
-function loadProfile(userId) {
-  const user = db.prepare('SELECT id, email, name, phone FROM users WHERE id = ?').get(userId);
-  const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId) || {};
-  const strengths = db.prepare('SELECT name, value FROM profile_strengths WHERE user_id = ?').all(userId);
-  const skills = db.prepare('SELECT name, level FROM profile_skills WHERE user_id = ?').all(userId);
-  const tags = db.prepare('SELECT tag FROM profile_tags WHERE user_id = ?').all(userId).map((r) => r.tag);
+async function loadProfile(userId) {
+  const user = await db.prepare('SELECT id, email, name, phone FROM users WHERE id = ?').get(userId);
+  const profile = (await db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId)) || {};
+  const strengths = await db.prepare('SELECT name, value FROM profile_strengths WHERE user_id = ?').all(userId);
+  const skills = await db.prepare('SELECT name, level FROM profile_skills WHERE user_id = ?').all(userId);
+  const tagsRows = await db.prepare('SELECT tag FROM profile_tags WHERE user_id = ?').all(userId);
+  const tags = tagsRows.map((r) => r.tag);
   return {
     name: user.name,
     email: user.email,
@@ -26,8 +27,8 @@ function loadProfile(userId) {
   };
 }
 
-function loadSchool(userId) {
-  const school = db.prepare('SELECT * FROM schools WHERE user_id = ?').get(userId);
+async function loadSchool(userId) {
+  const school = await db.prepare('SELECT * FROM schools WHERE user_id = ?').get(userId);
   if (!school) {
     return {
       name: '',
@@ -52,76 +53,76 @@ function loadSchool(userId) {
   };
 }
 
-function saveProfile(userId, profile) {
+async function saveProfile(userId, profile) {
   if (profile.phone !== undefined) {
-    db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(profile.phone, userId);
+    await db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(profile.phone, userId);
   }
 
-  const exists = db.prepare('SELECT user_id FROM profiles WHERE user_id = ?').get(userId);
-  const tx = db.transaction(() => {
+  const exists = await db.prepare('SELECT user_id FROM profiles WHERE user_id = ?').get(userId);
+  const tx = db.transaction(async (trx) => {
     if (exists) {
-      db.prepare(
-        `UPDATE profiles SET experience=?, interests=?, is_mentor=?, consent=?, city=?, updated_at=datetime('now')
+      await trx.prepare(
+        `UPDATE profiles SET experience=?, interests=?, is_mentor=?, consent=?, city=?, updated_at=NOW()
          WHERE user_id = ?`
       ).run(profile.experience, profile.interests, profile.isMentor ? 1 : 0, profile.consent ? 1 : 0, profile.city, userId);
     } else {
-      db.prepare(
+      await trx.prepare(
         `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
          VALUES (?, ?, ?, ?, ?, ?)`
       ).run(userId, profile.experience, profile.interests, profile.isMentor ? 1 : 0, profile.consent ? 1 : 0, profile.city);
     }
 
-    db.prepare('DELETE FROM profile_strengths WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM profile_skills WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM profile_tags WHERE user_id = ?').run(userId);
+    await trx.prepare('DELETE FROM profile_strengths WHERE user_id = ?').run(userId);
+    await trx.prepare('DELETE FROM profile_skills WHERE user_id = ?').run(userId);
+    await trx.prepare('DELETE FROM profile_tags WHERE user_id = ?').run(userId);
 
-    const insertStrength = db.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
-    for (const strength of profile.strengths || []) insertStrength.run(userId, strength.name, strength.val);
+    const insertStrength = trx.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
+    for (const strength of profile.strengths || []) await insertStrength.run(userId, strength.name, strength.val);
 
-    const insertSkill = db.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
-    for (const skill of profile.skills || []) insertSkill.run(userId, skill.name, skill.level);
+    const insertSkill = trx.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
+    for (const skill of profile.skills || []) await insertSkill.run(userId, skill.name, skill.level);
 
-    const insertTag = db.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
-    for (const tag of profile.tags || []) insertTag.run(userId, tag);
+    const insertTag = trx.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
+    for (const tag of profile.tags || []) await insertTag.run(userId, tag);
   });
-  tx();
+  await tx();
 
-  addActivity(userId, 'profile_update', 'Обновил профиль', 5);
-  reindexDirector(userId);
+  await addActivity(userId, 'profile_update', 'Обновил профиль', 5);
+  await reindexDirector(userId);
   return loadProfile(userId);
 }
 
-function saveSchool(userId, school) {
-  const exists = db.prepare('SELECT user_id FROM schools WHERE user_id = ?').get(userId);
+async function saveSchool(userId, school) {
+  const exists = await db.prepare('SELECT user_id FROM schools WHERE user_id = ?').get(userId);
   if (exists) {
-    db.prepare(
+    await db.prepare(
       `UPDATE schools SET name=?, address=?, students=?, teachers=?, type=?, building_count=?, useful_experience=?, want_to_know=?
        WHERE user_id = ?`
     ).run(school.name, school.address, school.students, school.teachers, school.type, school.buildingCount, school.usefulExperience, school.wantToKnow, userId);
   } else {
-    db.prepare(
+    await db.prepare(
       `INSERT INTO schools (user_id, name, address, students, teachers, type, building_count, useful_experience, want_to_know)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(userId, school.name, school.address, school.students, school.teachers, school.type, school.buildingCount, school.usefulExperience, school.wantToKnow);
   }
-  reindexDirector(userId);
+  await reindexDirector(userId);
   return loadSchool(userId);
 }
 
-function savePhoto(userId, fileName, uploadDir) {
+async function savePhoto(userId, fileName, uploadDir) {
   const url = '/uploads/' + fileName;
-  const old = db.prepare('SELECT photo FROM profiles WHERE user_id = ?').get(userId);
+  const old = await db.prepare('SELECT photo FROM profiles WHERE user_id = ?').get(userId);
   const exists = !!old;
   if (exists && old.photo && old.photo.startsWith('/uploads/')) {
     const oldPath = path.join(uploadDir, path.basename(old.photo));
     fs.unlink(oldPath, () => {});
   }
   if (exists) {
-    db.prepare('UPDATE profiles SET photo = ? WHERE user_id = ?').run(url, userId);
+    await db.prepare('UPDATE profiles SET photo = ? WHERE user_id = ?').run(url, userId);
   } else {
-    db.prepare('INSERT INTO profiles (user_id, photo) VALUES (?, ?)').run(userId, url);
+    await db.prepare('INSERT INTO profiles (user_id, photo) VALUES (?, ?)').run(userId, url);
   }
-  reindexDirector(userId);
+  await reindexDirector(userId);
   return { photo: url };
 }
 

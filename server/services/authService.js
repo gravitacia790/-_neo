@@ -12,23 +12,27 @@ function getSafeUserById(userId) {
   return db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(userId);
 }
 
-function registerDirector(data) {
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(data.email);
+async function registerDirector(data) {
+  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(data.email);
   if (existing) return { error: 'Пользователь с таким email уже существует', status: 409 };
 
   const hash = hashPassword(data.password);
-  const info = db
-    .prepare(`INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director')`)
+  const info = await db
+    .prepare(`INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director') RETURNING id`)
     .run(data.email, hash, data.name, data.phone || '');
-  ensureRatingRow(info.lastInsertRowid);
-  reindexDirector(info.lastInsertRowid);
+  await ensureRatingRow(info.lastInsertRowid);
+  await reindexDirector(info.lastInsertRowid);
 
-  const user = getSafeUserById(info.lastInsertRowid);
+  const user = await getSafeUserById(info.lastInsertRowid);
   return { user, token: signToken(user) };
 }
 
-function loginUser(data) {
-  const user = db.prepare('SELECT id, email, name, role, password_hash, failed_login_attempts, locked_until FROM users WHERE email = ?').get(data.email);
+async function loginUser(data) {
+  const user = await db
+    .prepare(
+      'SELECT id, email, name, role, password_hash, failed_login_attempts, locked_until FROM users WHERE email = ?'
+    )
+    .get(data.email);
   if (!user) return { error: 'Неверный email или пароль', status: 401 };
 
   if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
@@ -38,7 +42,7 @@ function loginUser(data) {
   if (!verifyPassword(data.password, user.password_hash)) {
     const failed = (user.failed_login_attempts || 0) + 1;
     const shouldLock = failed >= MAX_FAILED_LOGIN_ATTEMPTS;
-    db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').run(
+    await db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').run(
       shouldLock ? 0 : failed,
       shouldLock ? new Date(Date.now() + LOGIN_LOCK_MINUTES * 60000).toISOString() : null,
       user.id
@@ -49,18 +53,20 @@ function loginUser(data) {
     };
   }
 
-  db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(user.id);
+  await db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(user.id);
   const safeUser = { id: user.id, email: user.email, name: user.name, role: user.role };
   return { user: safeUser, token: signToken(safeUser) };
 }
 
-function createResetToken(email) {
-  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+async function createResetToken(email) {
+  const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (!user) return { ok: true, message: 'Если email найден, ссылка для сброса отправлена' };
 
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 3600000).toISOString();
-  db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(user.id, token, expiresAt);
+  await db
+    .prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)')
+    .run(user.id, token, expiresAt);
 
   const payload = {
     ok: true,
@@ -71,20 +77,26 @@ function createResetToken(email) {
   return payload;
 }
 
-function resetPassword(token, password) {
-  const row = db
+async function resetPassword(token, password) {
+  const row = await db
     .prepare(
-      "SELECT id, user_id FROM password_reset_tokens WHERE token = ? AND used = 0 AND expires_at > datetime('now')"
+      `SELECT id, user_id
+       FROM password_reset_tokens
+       WHERE token = ?
+         AND used = 0
+         AND expires_at > NOW()`
     )
     .get(token);
   if (!row) return { error: 'Токен недействителен или истёк', status: 400 };
 
   const hash = hashPassword(password);
-  const tx = db.transaction(() => {
-    db.prepare('UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(hash, row.user_id);
-    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
+  const tx = db.transaction(async (trx) => {
+    await trx
+      .prepare('UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL WHERE id = ?')
+      .run(hash, row.user_id);
+    await trx.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
   });
-  tx();
+  await tx();
   return { ok: true, message: 'Пароль успешно изменён' };
 }
 

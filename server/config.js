@@ -9,6 +9,9 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
   COOKIE_DOMAIN: z.string().optional().or(z.literal('')),
+  VAPID_SUBJECT: z.string().optional().or(z.literal('')),
+  VAPID_PUBLIC_KEY: z.string().optional().or(z.literal('')),
+  VAPID_PRIVATE_KEY: z.string().optional().or(z.literal('')),
 });
 
 function validateConfig(env) {

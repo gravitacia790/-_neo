@@ -164,6 +164,19 @@ var API = (function () {
       return request('PUT', '/api/notifications/read-all');
     },
 
+    getPushConfig: function () {
+      return fetch('/api/push/config', { credentials: 'include' }).then(function (res) {
+        if (!res.ok) throw new Error('push-config-unavailable');
+        return res.json();
+      });
+    },
+    subscribePush: function (subscription) {
+      return request('POST', '/api/push/subscribe', { subscription: subscription });
+    },
+    unsubscribePush: function (endpoint) {
+      return request('POST', '/api/push/unsubscribe', { endpoint: endpoint });
+    },
+
     sendMessage: function (toUserId, text) {
       return request('POST', '/api/messages', { toUserId: toUserId, text: text });
     },

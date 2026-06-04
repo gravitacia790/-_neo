@@ -1,175 +1,114 @@
-const path = require('path');
-const fs = require('fs');
-const { DatabaseSync } = require('node:sqlite');
+const { Pool } = require('pg');
+const { newDb } = require('pg-mem');
 const bcrypt = require('bcryptjs');
 const logger = require('./logger');
 
-function resolveDbPath() {
-  if (process.env.TEST_DB_PATH) return process.env.TEST_DB_PATH;
-  if (process.env.DB_PATH) return process.env.DB_PATH;
-  return path.join(__dirname, '..', 'data', 'gravitacia.db');
+function convertPlaceholders(sql) {
+  let idx = 1;
+  return sql.replace(/\?/g, () => `$${idx++}`);
 }
 
-const DB_PATH = resolveDbPath();
-const DB_DIR = path.dirname(DB_PATH);
-if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-
-const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL');
-db.exec('PRAGMA foreign_keys = ON');
-
-// Эмуляция db.transaction(fn) из better-sqlite3
-db.transaction = function (fn) {
-  return function (...args) {
-    db.exec('BEGIN');
-    try {
-      const result = fn(...args);
-      db.exec('COMMIT');
-      return result;
-    } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch (_) {
-        // ignore rollback errors, original error is more important
-      }
-      throw err;
-    }
+function createFacade(executor) {
+  return {
+    async exec(sql) {
+      await executor.query(sql);
+    },
+    prepare(sql) {
+      const text = convertPlaceholders(sql);
+      return {
+        async get(...params) {
+          const result = await executor.query(text, params);
+          return result.rows[0] || null;
+        },
+        async all(...params) {
+          const result = await executor.query(text, params);
+          return result.rows;
+        },
+        async run(...params) {
+          const result = await executor.query(text, params);
+          const row = result.rows[0] || null;
+          return {
+            rowCount: result.rowCount,
+            lastInsertRowid: row && (row.id || row.user_id) ? row.id || row.user_id : null,
+          };
+        },
+      };
+    },
+    transaction(fn) {
+      return async (...args) => {
+        const client = await executor.connect();
+        const tx = createFacade(client);
+        try {
+          await client.query('BEGIN');
+          const result = await fn(tx, ...args);
+          await client.query('COMMIT');
+          return result;
+        } catch (err) {
+          try {
+            await client.query('ROLLBACK');
+          } catch (_) {
+            // ignore rollback errors, original error is more important
+          }
+          throw err;
+        } finally {
+          if (typeof client.release === 'function') {
+            client.release();
+          }
+        }
+      };
+    },
   };
-};
-
-function migrate() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      name TEXT NOT NULL,
-      phone TEXT,
-      role TEXT NOT NULL DEFAULT 'director',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS profiles (
-      user_id INTEGER PRIMARY KEY,
-      experience TEXT,
-      interests TEXT,
-      is_mentor INTEGER NOT NULL DEFAULT 0,
-      consent INTEGER NOT NULL DEFAULT 0,
-      photo TEXT,
-      strengths TEXT NOT NULL DEFAULT '[]',
-      skills TEXT NOT NULL DEFAULT '[]',
-      tags TEXT NOT NULL DEFAULT '[]',
-      city TEXT,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS schools (
-      user_id INTEGER PRIMARY KEY,
-      name TEXT,
-      address TEXT,
-      students INTEGER,
-      teachers INTEGER,
-      type TEXT,
-      building_count INTEGER,
-      useful_experience TEXT,
-      want_to_know TEXT,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      date TEXT NOT NULL,
-      description TEXT NOT NULL,
-      max_participants INTEGER NOT NULL DEFAULT 999,
-      creator_id INTEGER NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS event_registrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id INTEGER NOT NULL,
-      employee_name TEXT NOT NULL,
-      position TEXT NOT NULL,
-      school_name TEXT NOT NULL,
-      registered_by INTEGER NOT NULL,
-      registered_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-      FOREIGN KEY (registered_by) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS extra_registrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category TEXT NOT NULL,
-      event_id TEXT NOT NULL,
-      employee_name TEXT NOT NULL,
-      position TEXT NOT NULL,
-      school_name TEXT NOT NULL,
-      registered_by INTEGER NOT NULL,
-      registered_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (registered_by) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS ratings (
-      user_id INTEGER PRIMARY KEY,
-      total_score INTEGER NOT NULL DEFAULT 0,
-      is_public INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS rating_activities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      type TEXT NOT NULL,
-      description TEXT NOT NULL,
-      points INTEGER NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_events_creator ON events(creator_id);
-    CREATE INDEX IF NOT EXISTS idx_event_regs_event ON event_registrations(event_id);
-    CREATE INDEX IF NOT EXISTS idx_extra_regs ON extra_registrations(category, event_id);
-    CREATE INDEX IF NOT EXISTS idx_rating_acts_user ON rating_activities(user_id, created_at DESC);
-
-    CREATE TABLE IF NOT EXISTS director_favorites (
-      user_id INTEGER NOT NULL,
-      director_id INTEGER NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (user_id, director_id),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (director_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_director_favorites_user ON director_favorites(user_id, created_at DESC);
-  `);
 }
 
-function ensureAdmin() {
+function createPool() {
+  if (process.env.NODE_ENV === 'test') {
+    const mem = newDb({ autoCreateForeignKeyIndices: true });
+    mem.public.registerFunction({ name: 'now', returns: 'timestamp', implementation: () => new Date() });
+    const pgAdapter = mem.adapters.createPg();
+    return new pgAdapter.Pool({ max: 1 });
+  }
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('[db] DATABASE_URL is required for PostgreSQL');
+  }
+  return new Pool({ connectionString: databaseUrl });
+}
+
+const DB_SINGLETON_KEY = '__gravitacia_pg_singleton__';
+const existingSingleton = global[DB_SINGLETON_KEY];
+let pool = existingSingleton ? existingSingleton.pool : null;
+let db = existingSingleton ? existingSingleton.db : null;
+
+if (!pool || !db) {
+  pool = createPool();
+  db = createFacade(pool);
+  global[DB_SINGLETON_KEY] = { pool, db };
+}
+
+async function ensureAdmin() {
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminEmail || !adminPassword) {
-    if (!process.env.TEST_DB_PATH) {
-      console.log('[db] ADMIN_EMAIL/ADMIN_PASSWORD не заданы — администратор не создан');
+    if (process.env.NODE_ENV !== 'test') {
+      logger.warn('db.admin_not_configured');
     }
     return;
   }
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail);
+  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(adminEmail);
   if (!existing) {
     const hash = bcrypt.hashSync(adminPassword, 10);
-    const info = db
-      .prepare(`INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin')`)
+    const info = await db
+      .prepare(`INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin') RETURNING id`)
       .run(adminEmail, hash, 'Администратор');
-    db.prepare('INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0)').run(info.lastInsertRowid);
+    await db.prepare('INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0)').run(info.lastInsertRowid);
     logger.info('db.admin_created', { email: adminEmail });
   }
 }
 
-function seedDemoDirectors() {
-  const count = db.prepare('SELECT COUNT(*) AS c FROM users WHERE role = ?').get('director').c;
-  if (count > 0) return;
+async function seedDemoDirectors() {
+  const countRow = await db.prepare('SELECT COUNT(*) AS c FROM users WHERE role = ?').get('director');
+  if (Number(countRow.c) > 0) return;
 
   const demos = [
     {
@@ -330,40 +269,40 @@ function seedDemoDirectors() {
     },
   ];
 
-  const insertUser = db.prepare(
-    `INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director')`
-  );
-  const insertProfile = db.prepare(
-    `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
-     VALUES (?, ?, ?, ?, 1, ?)`
-  );
-  const insertStrength = db.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
-  const insertSkill = db.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
-  const insertTag = db.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
-  const insertSchool = db.prepare(
-    `INSERT INTO schools (user_id, name, address, students, teachers, type, building_count, useful_experience, want_to_know)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  const insertRating = db.prepare(`INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, ?, 1)`);
+  const tx = db.transaction(async (trx) => {
+    const insertUser = trx.prepare(
+      `INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director') RETURNING id`
+    );
+    const insertProfile = trx.prepare(
+      `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
+       VALUES (?, ?, ?, ?, 1, ?)`
+    );
+    const insertStrength = trx.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
+    const insertSkill = trx.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
+    const insertTag = trx.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
+    const insertSchool = trx.prepare(
+      `INSERT INTO schools (user_id, name, address, students, teachers, type, building_count, useful_experience, want_to_know)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const insertRating = trx.prepare(`INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, ?, 1)`);
 
-  const tx = db.transaction(() => {
     const hash = bcrypt.hashSync('demo1234', 10);
     for (const d of demos) {
-      const info = insertUser.run(d.email, hash, d.name, d.phone);
+      const info = await insertUser.run(d.email, hash, d.name, d.phone);
       const uid = info.lastInsertRowid;
-      insertProfile.run(uid, d.profile.experience, d.profile.interests, d.profile.is_mentor, d.city);
+      await insertProfile.run(uid, d.profile.experience, d.profile.interests, d.profile.is_mentor, d.city);
       for (var sgi = 0; sgi < d.profile.strengths.length; sgi++) {
         var sg = d.profile.strengths[sgi];
-        insertStrength.run(uid, sg.name, sg.val);
+        await insertStrength.run(uid, sg.name, sg.val);
       }
       for (var ski = 0; ski < d.profile.skills.length; ski++) {
         var sk = d.profile.skills[ski];
-        insertSkill.run(uid, sk.name, sk.level);
+        await insertSkill.run(uid, sk.name, sk.level);
       }
       for (var tgi = 0; tgi < d.profile.tags.length; tgi++) {
-        insertTag.run(uid, d.profile.tags[tgi]);
+        await insertTag.run(uid, d.profile.tags[tgi]);
       }
-      insertSchool.run(
+      await insertSchool.run(
         uid,
         d.school.name,
         d.school.address,
@@ -374,26 +313,25 @@ function seedDemoDirectors() {
         d.school.useful_experience,
         d.school.want_to_know
       );
-      insertRating.run(uid, d.rating);
+      await insertRating.run(uid, d.rating);
     }
   });
-  tx();
+  await tx();
   logger.info('db.demo_seeded', { directors: demos.length });
 }
 
-function init() {
-  migrate();
-  const { runMigrations } = require('./migrate');
-  runMigrations();
-  ensureAdmin();
-  seedDemoDirectors();
+async function init() {
+  const { migrateUp } = require('./migrate');
+  await migrateUp();
+  await ensureAdmin();
+  await seedDemoDirectors();
 }
 
 function checkWeakAdminPassword() {
   if (process.env.NODE_ENV === 'production') {
     return;
   }
-  if (process.env.TEST_DB_PATH) {
+  if (process.env.NODE_ENV === 'test') {
     return;
   }
   if (process.env.ADMIN_PASSWORD) {
@@ -412,14 +350,15 @@ function checkWeakAdminPassword() {
 }
 
 if (require.main === module) {
-  if (process.argv.includes('--reset')) {
-    db.close();
-    if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
-    console.log('[db] База удалена. Запустите сервер для пересоздания.');
-    process.exit(0);
-  }
-  init();
-  console.log('[db] Инициализация завершена');
+  init()
+    .then(() => {
+      console.log('[db] Инициализация завершена');
+      return pool.end();
+    })
+    .catch((err) => {
+      console.error('[db] init failed:', err.message);
+      process.exit(1);
+    });
 }
 
-module.exports = { db, init, checkWeakAdminPassword };
+module.exports = { db, init, checkWeakAdminPassword, pool };

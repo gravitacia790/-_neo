@@ -14,10 +14,10 @@ const messageSchema = z.object({
 router.post(
   '/',
   authRequired,
-  safe('messages')((req, res) => {
+  safe('messages')(async (req, res) => {
     const parsed = messageSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные', details: parsed.error.issues });
-    const result = sendMessage(req.user.id, parsed.data.toUserId, parsed.data.text);
+    const result = await sendMessage(req.user.id, parsed.data.toUserId, parsed.data.text);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })
@@ -26,24 +26,24 @@ router.post(
 router.get(
   '/',
   authRequired,
-  safe('messages')((req, res) => {
-    res.json(listMessages(req.user.id));
+  safe('messages')(async (req, res) => {
+    res.json(await listMessages(req.user.id));
   })
 );
 
 router.get(
   '/unread',
   authRequired,
-  safe('messages')((req, res) => {
-    res.json(getUnreadCount(req.user.id));
+  safe('messages')(async (req, res) => {
+    res.json(await getUnreadCount(req.user.id));
   })
 );
 
 router.put(
   '/read-all',
   authRequired,
-  safe('messages')((req, res) => {
-    res.json(markAllRead(req.user.id));
+  safe('messages')(async (req, res) => {
+    res.json(await markAllRead(req.user.id));
   })
 );
 

@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS director_search;
+DROP TABLE IF EXISTS profile_tags;
+DROP TABLE IF EXISTS profile_skills;
+DROP TABLE IF EXISTS profile_strengths;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS password_reset_tokens;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS director_favorites;
+DROP TABLE IF EXISTS rating_activities;
+DROP TABLE IF EXISTS ratings;
+DROP TABLE IF EXISTS extra_registrations;
+DROP TABLE IF EXISTS event_registrations;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS schools;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS users;

@@ -23,31 +23,31 @@ const registerSchema = z.object({
 router.get(
   '/',
   authRequired,
-  safe('events')((req, res) => {
+  safe('events')(async (req, res) => {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
-    res.json(listEvents(page, limit));
+    res.json(await listEvents(page, limit));
   })
 );
 
 router.post(
   '/',
   authRequired,
-  safe('events')((req, res) => {
+  safe('events')(async (req, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные', details: parsed.error.issues });
-    res.json(createEvent(req.user, parsed.data));
+    res.json(await createEvent(req.user, parsed.data));
   })
 );
 
 router.post(
   '/:id/register',
   authRequired,
-  safe('events')((req, res) => {
+  safe('events')(async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
 
-    const result = registerForEvent(req.user, req.params.id, parsed.data);
+    const result = await registerForEvent(req.user, req.params.id, parsed.data);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })
@@ -56,8 +56,8 @@ router.post(
 router.delete(
   '/:id',
   authRequired,
-  safe('events')((req, res) => {
-    const result = deleteEvent(req.user, req.params.id);
+  safe('events')(async (req, res) => {
+    const result = await deleteEvent(req.user, req.params.id);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })

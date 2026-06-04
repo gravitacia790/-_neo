@@ -1,22 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import fs from 'fs';
-import path from 'path';
 import http from 'http';
-import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEST_DB = path.join(__dirname, '..', 'data', `test-gravitacia-${process.pid}-${Date.now()}.db`);
-
-process.env.TEST_DB_PATH = TEST_DB;
 process.env.PORT = '0';
 process.env.JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 process.env.NODE_ENV = 'test';
 process.env.ADMIN_EMAIL = 'admin@test.ru';
 process.env.ADMIN_PASSWORD = 'admin123';
+process.env.VAPID_SUBJECT = '';
+process.env.VAPID_PUBLIC_KEY = '';
+process.env.VAPID_PRIVATE_KEY = '';
 
 const { init: initDb } = await import('../server/db.js');
-initDb();
+await initDb();
+const { db } = await import('../server/db.js');
 
 const { default: supertest } = await import('supertest');
 const express = await import('express');
@@ -318,6 +315,42 @@ describe('Messages', () => {
     const unreadAfter = await apiGet('/api/messages/unread').set('Authorization', `Bearer ${annaToken}`);
     expect(unreadAfter.body.unread).toBe(0);
   });
+
+  it('архивирует сообщения старше 90 дней', async () => {
+    const senderLogin = await apiPost('/api/auth/login').send({
+      email: 'test@school.ru',
+      password: 'newpass123',
+    });
+    const senderToken = senderLogin.body.token;
+    const senderId = senderLogin.body.user.id;
+
+    const receiverLogin = await apiPost('/api/auth/login').send({
+      email: 'anna@school3.ru',
+      password: 'demo1234',
+    });
+    const receiverToken = receiverLogin.body.token;
+    const receiverId = receiverLogin.body.user.id;
+
+    await db.prepare(
+      `INSERT INTO messages (from_user_id, to_user_id, text, read, created_at)
+       VALUES (?, ?, ?, 0, NOW() - INTERVAL '91 days')`
+    ).run(senderId, receiverId, 'old message to archive');
+
+    const trigger = await apiGet('/api/messages').set('Authorization', `Bearer ${receiverToken}`);
+    expect(trigger.status).toBe(200);
+
+    const archived = await db.prepare('SELECT COUNT(*) AS c FROM messages_archive WHERE text = ?').get('old message to archive');
+    expect(Number(archived.c)).toBeGreaterThan(0);
+
+    const active = await db.prepare('SELECT COUNT(*) AS c FROM messages WHERE text = ?').get('old message to archive');
+    expect(Number(active.c)).toBe(0);
+
+    const send = await apiPost('/api/messages').set('Authorization', `Bearer ${senderToken}`).send({
+      toUserId: receiverId,
+      text: 'fresh message after archive check',
+    });
+    expect(send.status).toBe(200);
+  });
 });
 
 describe('Ratings', () => {
@@ -380,17 +413,10 @@ describe('WebSocket', () => {
   });
 });
 
-afterAll(() => {
+afterAll(async () => {
   if (httpServer) {
     httpServer.close();
   }
-  try {
-    if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
-    const wal = TEST_DB + '-wal';
-    const shm = TEST_DB + '-shm';
-    if (fs.existsSync(wal)) fs.unlinkSync(wal);
-    if (fs.existsSync(shm)) fs.unlinkSync(shm);
-  } catch (_) {
-    /* файл уже удалён */
-  }
+  const { pool } = await import('../server/db.js');
+  await pool.end();
 });

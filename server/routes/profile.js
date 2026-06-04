@@ -31,6 +31,39 @@ const upload = multer({
   },
 });
 
+function hasAllowedImageSignature(buffer) {
+  if (!buffer || buffer.length < 12) return false;
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true;
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return true;
+  }
+  // WEBP: "RIFF....WEBP"
+  if (
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return true;
+  }
+  return false;
+}
+
 const profileSchema = z.object({
   phone: z.string().max(40).optional(),
   experience: z.string().max(5000).optional().default(''),
@@ -64,49 +97,60 @@ const schoolSchema = z.object({
 router.get(
   '/',
   authRequired,
-  safe('profile')((req, res) => {
-    res.json({ profile: loadProfile(req.user.id), school: loadSchool(req.user.id) });
+  safe('profile')(async (req, res) => {
+    const [profile, school] = await Promise.all([loadProfile(req.user.id), loadSchool(req.user.id)]);
+    res.json({ profile, school });
   })
 );
 
 router.put(
   '/',
   authRequired,
-  safe('profile')((req, res) => {
+  safe('profile')(async (req, res) => {
     const parsed = profileSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные', details: parsed.error.issues });
-    res.json({ profile: saveProfile(req.user.id, parsed.data) });
+    res.json({ profile: await saveProfile(req.user.id, parsed.data) });
   })
 );
 
 router.get(
   '/school',
   authRequired,
-  safe('profile')((req, res) => {
-    res.json({ school: loadSchool(req.user.id) });
+  safe('profile')(async (req, res) => {
+    res.json({ school: await loadSchool(req.user.id) });
   })
 );
 
 router.put(
   '/school',
   authRequired,
-  safe('profile')((req, res) => {
+  safe('profile')(async (req, res) => {
     var parsed = schoolSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
-    res.json({ school: saveSchool(req.user.id, parsed.data) });
+    res.json({ school: await saveSchool(req.user.id, parsed.data) });
   })
 );
 
 router.post('/photo', authRequired, (req, res, _next) => {
   upload.single('photo')(req, res, (err) => {
-    try {
+    (async () => {
       if (err) return res.status(400).json({ error: 'Только JPEG/PNG/WebP, до 1 МБ' });
       if (!req.file) return res.status(400).json({ error: 'Файл не получен' });
-      res.json(savePhoto(req.user.id, req.file.filename, UPLOAD_DIR));
-    } catch (dbErr) {
+      const absPath = path.join(UPLOAD_DIR, req.file.filename);
+      const fileBuffer = fs.readFileSync(absPath);
+      if (!hasAllowedImageSignature(fileBuffer)) {
+        try {
+          fs.unlinkSync(absPath);
+        } catch (_) {
+          // ignore cleanup errors
+        }
+        return res.status(400).json({ error: 'Некорректный формат файла' });
+      }
+      res.json(await savePhoto(req.user.id, req.file.filename, UPLOAD_DIR));
+    })().catch((dbErr) => {
       console.error('[profile] POST /photo:', dbErr.message);
       if (!res.headersSent) res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-    }
+    });
   });
 });
 

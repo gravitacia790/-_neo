@@ -9,8 +9,10 @@ const ROUTE_PREFIXES = {
   ratings: '[ratings]',
   admin: '[admin]',
   notifications: '[notifications]',
+  push: '[push]',
   docs: '[docs]',
   messages: '[messages]',
+  webpush: '[webpush]',
 };
 
 function safe(prefix) {

@@ -10,8 +10,8 @@ router.use(authRequired, adminRequired);
 
 router.get(
   '/users',
-  safe('admin')((req, res) => {
-    const rows = db
+  safe('admin')(async (req, res) => {
+    const rows = await db
       .prepare(
         `
     SELECT u.id, u.name, u.email, u.role, u.created_at,
@@ -28,7 +28,7 @@ router.get(
     const lastActs = {};
     if (userIds.length) {
       const placeholders = userIds.map(() => '?').join(',');
-      const acts = db
+      const acts = await db
         .prepare(
           `SELECT user_id, description, points, created_at FROM rating_activities
        WHERE user_id IN (${placeholders}) ORDER BY created_at DESC`

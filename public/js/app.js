@@ -46,6 +46,9 @@ function showMainApp() {
     }
     WS.connect();
     NOTIF.init();
+    if (typeof window.initPushClient === 'function') {
+      window.initPushClient();
+    }
     var msgBtn = document.getElementById('msgBtn');
     if (msgBtn && !APP_RUNTIME.msgButtonBound) {
       msgBtn.addEventListener('click', openMsgDropdown);

@@ -46,6 +46,14 @@ var WS = (function () {
 
   function handleMessage(data) {
     if (data.type === 'connected') return;
+    if (data.type === 'message_new') {
+      if (typeof window.refreshUnreadMessages === 'function') {
+        window.refreshUnreadMessages();
+      }
+      if (typeof notify === 'function' && data.fromName) {
+        notify('Новое сообщение от ' + data.fromName);
+      }
+    }
     if (typeof WS.onNotification === 'function') {
       WS.onNotification(data);
     }

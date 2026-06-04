@@ -10,7 +10,7 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const { validateConfig } = require('./server/config');
 const logger = require('./server/logger');
-const { db } = require('./server/db');
+const { db, pool } = require('./server/db');
 
 const config = validateConfig(process.env);
 
@@ -18,7 +18,10 @@ const { init: initDb, checkWeakAdminPassword } = require('./server/db');
 const { init: initWs } = require('./server/ws');
 // Dev-only: generate ADMIN_PASSWORD in memory before DB seed creates admin.
 checkWeakAdminPassword();
-initDb();
+initDb().catch((err) => {
+  logger.error('db.init_failed', { message: err.message });
+  process.exit(1);
+});
 
 const app = express();
 const PORT = config.PORT;
@@ -84,11 +87,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
-app.get('/ready', (req, res) => {
+app.get('/ready', async (req, res) => {
   try {
-    const version = db.prepare('SELECT sqlite_version() AS v').get();
-    const users = db.prepare('SELECT COUNT(*) AS c FROM users').get();
-    res.json({ status: 'ready', db: 'ok', sqliteVersion: version.v, users: users.c });
+    const version = await db.prepare('SHOW server_version').get();
+    const users = await db.prepare('SELECT COUNT(*) AS c FROM users').get();
+    res.json({ status: 'ready', db: 'ok', postgresVersion: version.server_version, users: Number(users.c) });
   } catch (err) {
     logger.error('readiness.failed', { message: err.message });
     res.status(503).json({ status: 'not_ready', db: 'error' });
@@ -117,6 +120,13 @@ const authLimiter = rateLimit({
 });
 
 app.use('/api/auth', authLimiter);
+const messagesSendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много сообщений за короткое время, попробуйте позже' },
+});
 app.use('/api/auth', require('./server/routes/auth'));
 app.use('/api/profile', require('./server/routes/profile'));
 app.use('/api/directors', require('./server/routes/directors'));
@@ -124,8 +134,9 @@ app.use('/api/events', require('./server/routes/events'));
 app.use('/api/extras', require('./server/routes/extras'));
 app.use('/api/ratings', require('./server/routes/ratings'));
 app.use('/api/notifications', require('./server/routes/notifications'));
+app.use('/api/push', require('./server/routes/push'));
 app.use('/api/admin', require('./server/routes/admin'));
-app.use('/api/messages', require('./server/routes/messages'));
+app.use('/api/messages', messagesSendLimiter, require('./server/routes/messages'));
 
 // Swagger / OpenAPI
 app.use('/api/docs', require('./server/routes/docs'));
@@ -136,10 +147,9 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/api/stats', (req, res) => {
-  const { db } = require('./server/db');
-  const count = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director'").get().c;
-  res.json({ directors: count });
+app.get('/api/stats', async (req, res) => {
+  const row = await db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director'").get();
+  res.json({ directors: Number(row.c) });
 });
 
 // Обработка ошибок
@@ -164,9 +174,9 @@ server.listen(PORT, () => {
 
 function shutdown(signal) {
   logger.warn('server.shutdown_started', { signal });
-  server.close(() => {
+  server.close(async () => {
     try {
-      db.close();
+      await pool.end();
     } catch (_) {
       logger.warn('server.db_close_failed');
     }

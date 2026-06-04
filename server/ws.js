@@ -53,9 +53,13 @@ function broadcast(data) {
 function sendToUser(userId, data) {
   if (!wss) return;
   const message = JSON.stringify(data);
+  const targetId = Number(userId);
+  const targetStr = String(userId);
   wss.clients.forEach((client) => {
     if (client.readyState !== 1) return;
-    if (client._userId === userId) client.send(message);
+    const clientNum = Number(client._userId);
+    const clientStr = String(client._userId);
+    if (clientNum === targetId || clientStr === targetStr) client.send(message);
   });
 }
 
@@ -67,8 +71,8 @@ function notifyUser(userId, eventType, payload) {
   sendToUser(userId, { type: eventType, ...payload, timestamp: new Date().toISOString() });
 }
 
-function insertNotification(userId, type, title, message) {
-  db.prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)').run(
+async function insertNotification(userId, type, title, message) {
+  await db.prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)').run(
     userId,
     type,
     title,
@@ -76,10 +80,10 @@ function insertNotification(userId, type, title, message) {
   );
 }
 
-function broadcastAndInsert(eventType, title, message, excludeUserId) {
+async function broadcastAndInsert(eventType, title, message, excludeUserId) {
   const exclude = excludeUserId || 0;
   broadcast({ type: eventType, title, message, timestamp: new Date().toISOString() });
-  db.prepare(
+  await db.prepare(
     `INSERT INTO notifications (user_id, type, title, message)
      SELECT id, ?, ?, ? FROM users WHERE id != ?`
   ).run(eventType, title, message, exclude);

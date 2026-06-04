@@ -8,32 +8,32 @@ var router = express.Router();
 router.get(
   '/',
   authRequired,
-  safe('directors')((req, res) => {
-    res.json(directorsService.listDirectors(req.user, req.query));
+  safe('directors')(async (req, res) => {
+    res.json(await directorsService.listDirectors(req.user, req.query));
   })
 );
 
 router.get(
   '/mentors',
   authRequired,
-  safe('directors')((req, res) => {
-    res.json(directorsService.listMentors(req.user));
+  safe('directors')(async (req, res) => {
+    res.json(await directorsService.listMentors(req.user));
   })
 );
 
 router.get(
   '/favorites',
   authRequired,
-  safe('directors')((req, res) => {
-    res.json(directorsService.listFavorites(req.user, req.query));
+  safe('directors')(async (req, res) => {
+    res.json(await directorsService.listFavorites(req.user, req.query));
   })
 );
 
 router.post(
   '/:id/favorite',
   authRequired,
-  safe('directors')((req, res) => {
-    var result = directorsService.toggleFavorite(req.user, req.params.id);
+  safe('directors')(async (req, res) => {
+    var result = await directorsService.toggleFavorite(req.user, req.params.id);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })
@@ -42,8 +42,8 @@ router.post(
 router.get(
   '/:id',
   authRequired,
-  safe('directors')((req, res) => {
-    var result = directorsService.getDirectorById(req.user, req.params.id);
+  safe('directors')(async (req, res) => {
+    var result = await directorsService.getDirectorById(req.user, req.params.id);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })

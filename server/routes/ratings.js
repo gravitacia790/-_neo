@@ -10,8 +10,8 @@ const router = express.Router();
 router.get(
   '/me',
   authRequired,
-  safe('ratings')((req, res) => {
-    res.json({ rating: getRatingByUserId(req.user.id) });
+  safe('ratings')(async (req, res) => {
+    res.json({ rating: await getRatingByUserId(req.user.id) });
   })
 );
 
@@ -19,21 +19,21 @@ const visSchema = z.object({ public: z.boolean() });
 router.put(
   '/me/visibility',
   authRequired,
-  safe('ratings')((req, res) => {
+  safe('ratings')(async (req, res) => {
     const parsed = visSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
-    setVisibility(req.user.id, parsed.data.public);
-    res.json({ rating: getRatingByUserId(req.user.id) });
+    await setVisibility(req.user.id, parsed.data.public);
+    res.json({ rating: await getRatingByUserId(req.user.id) });
   })
 );
 
 router.get(
   '/by-id/:id',
   authRequired,
-  safe('ratings')((req, res) => {
-    const target = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  safe('ratings')(async (req, res) => {
+    const target = await db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
     if (!target) return res.status(404).json({ error: 'Не найдено' });
-    const rating = getRatingByUserId(target.id);
+    const rating = await getRatingByUserId(target.id);
     const isOwner = req.user.id === target.id;
     const isAdmin = req.user.role === 'admin';
     if (!isOwner && !isAdmin && !rating.public) {

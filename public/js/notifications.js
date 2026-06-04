@@ -67,6 +67,10 @@ var NOTIF = (function () {
   }
 
   function onNewNotification(data) {
+    if (data && data.type === 'message_new') {
+      // Message events are handled by message badge flow, not notification bell.
+      return;
+    }
     setUnread(getUnread() + 1);
     var title = data.title || '';
     var msg = data.message || '';

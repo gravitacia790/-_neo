@@ -26,6 +26,18 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .email()
+    .transform((e) => e.toLowerCase().trim()),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1).max(500).transform((t) => t.trim()),
+  password: z.string().min(6).max(200),
+});
+
 function getCookieOpts() {
   return getAuthCookieOptions({
     NODE_ENV: process.env.NODE_ENV || 'development',
@@ -46,12 +58,12 @@ function clearTokenCookie(res) {
 
 router.post(
   '/register',
-  safe('auth')((req, res) => {
+  safe('auth')(async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные', details: parsed.error.issues });
     const { name, email, phone, password } = parsed.data;
 
-    const result = registerDirector({ name, email, phone, password });
+    const result = await registerDirector({ name, email, phone, password });
     if (result.error) return res.status(result.status).json({ error: result.error });
     const { user, token } = result;
     setTokenCookie(res, token);
@@ -61,12 +73,12 @@ router.post(
 
 router.post(
   '/login',
-  safe('auth')((req, res) => {
+  safe('auth')(async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
     const { email, password } = parsed.data;
 
-    const result = loginUser({ email, password });
+    const result = await loginUser({ email, password });
     if (result.error) return res.status(result.status).json({ error: result.error });
     const { user, token } = result;
     setTokenCookie(res, token);
@@ -84,24 +96,19 @@ router.post(
 
 router.post(
   '/forgot-password',
-  safe('auth')((req, res) => {
-    var email = (req.body.email || '').toLowerCase().trim();
-    if (!email) return res.status(400).json({ error: 'Укажите email' });
-
-    res.json(createResetToken(email));
+  safe('auth')(async (req, res) => {
+    const parsed = forgotPasswordSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
+    res.json(await createResetToken(parsed.data.email));
   })
 );
 
 router.post(
   '/reset-password',
-  safe('auth')((req, res) => {
-    var token = (req.body.token || '').trim();
-    var password = req.body.password || '';
-    if (!token || password.length < 6) {
-      return res.status(400).json({ error: 'Неверный токен или пароль (мин. 6 символов)' });
-    }
-
-    var result = resetPassword(token, password);
+  safe('auth')(async (req, res) => {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Неверный токен или пароль (мин. 6 символов)' });
+    const result = await resetPassword(parsed.data.token, parsed.data.password);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })
