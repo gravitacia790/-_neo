@@ -48,4 +48,43 @@ function showDirectorDetail(director) {
   document.body.appendChild(overlay);
   modal.querySelector('.close-modal').addEventListener('click', function () { overlay.remove(); });
   modal.querySelector('#contactBtn').addEventListener('click', function () { showMessageModal(director.id, director.name); });
+  bindSwipeBackToClose(overlay, modal);
+}
+
+function bindSwipeBackToClose(overlay, modal) {
+  if (!overlay || !modal) return;
+  if (!window.matchMedia('(max-width: 767px)').matches) return;
+
+  var tracking = false;
+  var startX = 0;
+  var startY = 0;
+  var startAt = 0;
+
+  modal.addEventListener('touchstart', function (e) {
+    if (!e.touches || !e.touches.length) return;
+    var touch = e.touches[0];
+    tracking = true;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startAt = Date.now();
+  }, { passive: true });
+
+  modal.addEventListener('touchend', function (e) {
+    if (!tracking || !e.changedTouches || !e.changedTouches.length) return;
+    tracking = false;
+
+    var touch = e.changedTouches[0];
+    var deltaX = touch.clientX - startX;
+    var deltaY = touch.clientY - startY;
+    var elapsed = Date.now() - startAt;
+    var horizontalEnough = deltaX > 80 && deltaX > Math.abs(deltaY) * 1.35;
+    var verticalSmall = Math.abs(deltaY) < 64;
+    var fastEnough = elapsed < 1000;
+
+    if (horizontalEnough && verticalSmall && fastEnough) overlay.remove();
+  }, { passive: true });
+
+  modal.addEventListener('touchcancel', function () {
+    tracking = false;
+  }, { passive: true });
 }

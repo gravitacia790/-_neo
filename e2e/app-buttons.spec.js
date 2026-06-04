@@ -228,5 +228,51 @@ test.describe('UI buttons DB flows', () => {
 
     await context.close();
   });
+
+  test('mobile swipe right closes director detail and reopens more sheet from more tabs', async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    await registerOrLogin(page);
+
+    await page.click('button[data-tab="directors"]');
+    const detailBtn = page.locator('[data-action="detail"]').first();
+    await expect(detailBtn).toBeVisible();
+    await detailBtn.click();
+    const detailModal = page.locator('.modal-overlay .modal-content').first();
+    await expect(detailModal).toBeVisible();
+
+    await detailModal.dispatchEvent('touchstart', {
+      touches: [{ identifier: 1, clientX: 20, clientY: 220 }],
+      changedTouches: [{ identifier: 1, clientX: 20, clientY: 220 }],
+    });
+    await detailModal.dispatchEvent('touchend', {
+      touches: [],
+      changedTouches: [{ identifier: 1, clientX: 180, clientY: 230 }],
+    });
+    await expect(detailModal).toBeHidden();
+
+    await page.click('#mobileMoreBtn');
+    await page.click('#moreSheet [data-tab="gl"]');
+    await expect(page.locator('#gl')).toBeVisible();
+
+    const main = page.locator('#mainContent');
+    await main.dispatchEvent('touchstart', {
+      touches: [{ identifier: 2, clientX: 18, clientY: 300 }],
+      changedTouches: [{ identifier: 2, clientX: 18, clientY: 300 }],
+    });
+    await main.dispatchEvent('touchend', {
+      touches: [],
+      changedTouches: [{ identifier: 2, clientX: 170, clientY: 310 }],
+    });
+
+    await expect(page.locator('#moreSheet')).toBeVisible();
+    await context.close();
+  });
 });
 
