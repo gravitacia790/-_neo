@@ -46,6 +46,9 @@ var WS = (function () {
 
   function handleMessage(data) {
     if (data.type === 'connected') return;
+    if (typeof window.onRealtimeMessage === 'function') {
+      try { window.onRealtimeMessage(data); } catch (_) {}
+    }
     if (data.type === 'message_new') {
       if (typeof window.refreshUnreadMessages === 'function') {
         window.refreshUnreadMessages();

@@ -1,5 +1,11 @@
 /* global SHELLDOM, OVERLAY, getUiErrorMessage */
 (function () {
+  var CHAT_STATE = {
+    openUserId: null,
+    openUserName: '',
+    currentMessages: [],
+  };
+
   function updateMessageBadge(count) {
     SHELLDOM.syncBadge(SHELLDOM.byId('msgBadge'), count);
   }
@@ -75,6 +81,58 @@
     OVERLAY.toggle(SHELLDOM.byId('msgBtn'), SHELLDOM.byId('msgDropdown'), false);
   }
 
+  function renderThreadInElement(threadEl, messages) {
+    var me = API.getUser();
+    var myId = me && me.id;
+    if (!messages.length) {
+      threadEl.innerHTML = '<div class="dropdown-empty-state">Начните диалог первым</div>';
+      return;
+    }
+    threadEl.innerHTML = messages
+      .map(function (m) {
+        var isMine = m.from_user_id === myId;
+        return (
+          '<div style="display:flex;justify-content:' + (isMine ? 'flex-end' : 'flex-start') + ';margin-bottom:8px;">' +
+          '<div style="max-width:82%;padding:8px 10px;border-radius:12px;background:' + (isMine ? 'var(--crimson)' : 'rgba(255,255,255,0.08)') + ';color:' + (isMine ? '#fff' : 'var(--cream)') + ';">' +
+          '<div style="font-size:0.8rem;line-height:1.35;">' + escapeHtml(m.text || '') + '</div>' +
+          '<div style="font-size:0.62rem;opacity:0.75;margin-top:4px;text-align:right;">' + escapeHtml(m.created_at || '') + '</div>' +
+          '</div>' +
+          '</div>'
+        );
+      })
+      .join('');
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  function attachRealtimeThreadListener(threadEl) {
+    window.onRealtimeMessage = function (data) {
+      if (!data || data.type !== 'message_new') return;
+      var me = API.getUser();
+      var myId = me && me.id;
+      if (!myId || !CHAT_STATE.openUserId) return;
+      var fromId = Number(data.fromUserId || 0);
+      var toId = Number(data.toUserId || 0);
+      var peerId = Number(CHAT_STATE.openUserId);
+      var belongsToOpenDialog =
+        (fromId === peerId && toId === myId) ||
+        (fromId === myId && toId === peerId);
+      if (!belongsToOpenDialog) return;
+
+      var incoming = {
+        id: 'rt-' + Date.now(),
+        from_user_id: fromId,
+        to_user_id: toId,
+        from_name: data.fromName || CHAT_STATE.openUserName || 'Пользователь',
+        to_name: me.name || 'Вы',
+        text: data.preview || '',
+        read: 0,
+        created_at: new Date().toISOString(),
+      };
+      CHAT_STATE.currentMessages.push(incoming);
+      renderThreadInElement(threadEl, CHAT_STATE.currentMessages);
+    };
+  }
+
   function openMsgDropdown() {
     var dd = SHELLDOM.byId('msgDropdown');
     var list = SHELLDOM.byId('msgList');
@@ -122,29 +180,10 @@
         refreshTimer = null;
       }
       overlay.remove();
-    }
-
-    function renderThread(messages) {
-      var me = API.getUser();
-      var myId = me && me.id;
-      if (!messages.length) {
-        threadEl.innerHTML = '<div class="dropdown-empty-state">Начните диалог первым</div>';
-        return;
-      }
-      threadEl.innerHTML = messages
-        .map(function (m) {
-          var isMine = m.from_user_id === myId;
-          return (
-            '<div style="display:flex;justify-content:' + (isMine ? 'flex-end' : 'flex-start') + ';margin-bottom:8px;">' +
-            '<div style="max-width:82%;padding:8px 10px;border-radius:12px;background:' + (isMine ? 'var(--crimson)' : 'rgba(255,255,255,0.08)') + ';color:' + (isMine ? '#fff' : 'var(--cream)') + ';">' +
-            '<div style="font-size:0.8rem;line-height:1.35;">' + escapeHtml(m.text || '') + '</div>' +
-            '<div style="font-size:0.62rem;opacity:0.75;margin-top:4px;text-align:right;">' + escapeHtml(m.created_at || '') + '</div>' +
-            '</div>' +
-            '</div>'
-          );
-        })
-        .join('');
-      threadEl.scrollTop = threadEl.scrollHeight;
+      CHAT_STATE.openUserId = null;
+      CHAT_STATE.openUserName = '';
+      CHAT_STATE.currentMessages = [];
+      window.onRealtimeMessage = null;
     }
 
     function loadThread() {
@@ -161,7 +200,8 @@
               );
             })
             .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
-          renderThread(thread);
+          CHAT_STATE.currentMessages = thread;
+          renderThreadInElement(threadEl, thread);
           API.markAllMessagesRead().catch(function () {});
           refreshUnreadMessages();
         })
@@ -189,10 +229,22 @@
 
       API.sendMessage(toUserId, text)
         .then(function () {
+          var me = API.getUser();
+          var optimistic = {
+            id: 'local-' + Date.now(),
+            from_user_id: me && me.id,
+            to_user_id: toUserId,
+            from_name: me && me.name ? me.name : 'Вы',
+            to_name: toUserName,
+            text: text,
+            read: 1,
+            created_at: new Date().toISOString(),
+          };
+          CHAT_STATE.currentMessages.push(optimistic);
+          renderThreadInElement(threadEl, CHAT_STATE.currentMessages);
           textarea.value = '';
           notify('Сообщение отправлено');
           refreshUnreadMessages();
-          loadThread();
         })
         .catch(function (err) {
           errorEl.textContent = err.message || 'Ошибка отправки';
@@ -206,6 +258,10 @@
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendBtn.click();
     });
 
+    CHAT_STATE.openUserId = toUserId;
+    CHAT_STATE.openUserName = toUserName;
+    CHAT_STATE.currentMessages = [];
+    attachRealtimeThreadListener(threadEl);
     loadThread();
     refreshTimer = setInterval(loadThread, 7000);
   }
