@@ -23,7 +23,16 @@ function setAppState(state) {
     shell.main.classList.toggle('active', state === 'app');
     shell.main.setAttribute('aria-hidden', state === 'app' ? 'false' : 'true');
   }
+  syncMobileNavVisibility(state);
   return shell;
+}
+
+function syncMobileNavVisibility(state) {
+  var nav = document.getElementById('mobileBottomNav');
+  if (!nav) return;
+  var shouldShow = state === 'app';
+  nav.hidden = !shouldShow;
+  nav.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
 }
 
 function showMainApp() {
@@ -146,6 +155,8 @@ function bindKeyboardFocusWatcher() {
 function mountMobileNavForViewport() {
   var nav = document.getElementById('mobileBottomNav');
   if (!nav) return;
+  var app = document.getElementById('app');
+  var state = app ? app.getAttribute('data-app-state') : 'splash';
 
   // On phones, mount nav directly to body so it is never affected by parent scrolling/stacking contexts.
   if (isMobileViewport()) {
@@ -155,6 +166,7 @@ function mountMobileNavForViewport() {
       document.body.appendChild(nav);
       APP_RUNTIME.mobileNavMoved = true;
     }
+    syncMobileNavVisibility(state || 'splash');
     return;
   }
 
@@ -167,6 +179,8 @@ function mountMobileNavForViewport() {
     }
     APP_RUNTIME.mobileNavMoved = false;
   }
+
+  syncMobileNavVisibility(state || 'splash');
 }
 
 function loadCommunityStats() {

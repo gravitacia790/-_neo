@@ -88,6 +88,11 @@ body::before {
   display: none;
 }
 
+#app[data-app-state='splash'] .auth-buttons {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* ── Animations ── */
 @keyframes fadeUp {
   from {
@@ -2271,5 +2276,13 @@ body.nav-sheet-open {
     animation: none !important;
     transition: none !important;
     transform: none !important;
+  }
+
+  .auth-buttons,
+  .region-text,
+  .tagline,
+  .splash-supporting-copy,
+  .community-stats {
+    opacity: 1 !important;
   }
 }
