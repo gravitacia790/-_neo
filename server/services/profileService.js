@@ -15,6 +15,7 @@ async function loadProfile(userId) {
     name: user.name,
     email: user.email,
     phone: user.phone || '',
+    telegram: profile.telegram || '',
     experience: profile.experience || '',
     interests: profile.interests || '',
     isMentor: !!profile.is_mentor,
@@ -62,14 +63,30 @@ async function saveProfile(userId, profile) {
   const tx = db.transaction(async (trx) => {
     if (exists) {
       await trx.prepare(
-        `UPDATE profiles SET experience=?, interests=?, is_mentor=?, consent=?, city=?, updated_at=NOW()
+        `UPDATE profiles SET experience=?, interests=?, telegram=?, is_mentor=?, consent=?, city=?, updated_at=NOW()
          WHERE user_id = ?`
-      ).run(profile.experience, profile.interests, profile.isMentor ? 1 : 0, profile.consent ? 1 : 0, profile.city, userId);
+      ).run(
+        profile.experience,
+        profile.interests,
+        profile.telegram || '',
+        profile.isMentor ? 1 : 0,
+        profile.consent ? 1 : 0,
+        profile.city,
+        userId
+      );
     } else {
       await trx.prepare(
-        `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(userId, profile.experience, profile.interests, profile.isMentor ? 1 : 0, profile.consent ? 1 : 0, profile.city);
+        `INSERT INTO profiles (user_id, experience, interests, telegram, is_mentor, consent, city)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        userId,
+        profile.experience,
+        profile.interests,
+        profile.telegram || '',
+        profile.isMentor ? 1 : 0,
+        profile.consent ? 1 : 0,
+        profile.city
+      );
     }
 
     await trx.prepare('DELETE FROM profile_strengths WHERE user_id = ?').run(userId);

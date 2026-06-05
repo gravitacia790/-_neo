@@ -1,7 +1,6 @@
 /* global SHELLDOM, bindDirectorSegments, bindFavoritesSort */
 var APP_RUNTIME = {
   tabsInitialized: false,
-  msgButtonBound: false,
   shellScrollBound: false,
   viewportBound: false,
   keyboardWatcherBound: false,
@@ -48,11 +47,6 @@ function showMainApp() {
     NOTIF.init();
     if (typeof window.initPushClient === 'function') {
       window.initPushClient();
-    }
-    var msgBtn = document.getElementById('msgBtn');
-    if (msgBtn && !APP_RUNTIME.msgButtonBound) {
-      msgBtn.addEventListener('click', openMsgDropdown);
-      APP_RUNTIME.msgButtonBound = true;
     }
   });
 }

@@ -7,6 +7,7 @@ function renderProfileView() {
     '<div class="form-group"><label class="form-label">ФИО полностью</label><input type="text" id="directorName" placeholder="Иванов Иван Иванович"></div>' +
     '<div class="form-group"><label class="form-label">Email</label><input type="email" id="directorEmail" placeholder="director@school.ru"></div>' +
     '<div class="form-group"><label class="form-label">Телефон</label><input type="tel" id="directorPhone" placeholder="+7 (999) 999-99-99"></div>' +
+    '<div class="form-group"><label class="form-label">Telegram (username или ссылка)</label><input type="text" id="directorTelegram" placeholder="@director или https://t.me/director"></div>' +
     '<h3 class="section-label">Мои сильные стороны</h3><div id="strengthsList"></div>' +
     '<button class="add-btn" id="addStrengthBtn">+ Добавить качество</button>' +
     '<h3 class="section-label">Профессиональные навыки</h3><div id="skillsList"></div>' +

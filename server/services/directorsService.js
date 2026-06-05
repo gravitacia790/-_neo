@@ -9,8 +9,8 @@ const BASE_FROM_SQL = `
 `;
 
 const SELECT_SQL = `
-  SELECT u.id, u.email, u.name, u.role,
-         p.experience, p.interests, p.is_mentor, p.photo, p.city,
+  SELECT u.id, u.email, u.name, u.phone, u.role,
+         p.experience, p.interests, p.telegram, p.is_mentor, p.photo, p.city,
          s.name AS school_name, s.address, s.useful_experience, s.want_to_know,
          r.total_score, r.is_public
   ${BASE_FROM_SQL}
@@ -84,6 +84,8 @@ async function serializeDirector(row, viewer, preloaded) {
     email: canSeeEmail ? row.email : null,
     school: row.school_name || 'Школа не указана',
     city,
+    phone: row.phone || null,
+    telegram: row.telegram || null,
     useful: row.useful_experience || row.experience || '',
     wantToKnow: row.want_to_know || '',
     isMentor: !!row.is_mentor,

@@ -10,6 +10,34 @@ function showDirectorDetail(director) {
 
   var modal = document.createElement('div');
   modal.className = 'modal-content';
+  function normalizeTelegramLink(rawValue) {
+    if (!rawValue) return null;
+    var value = String(rawValue).trim();
+    if (!value) return null;
+    if (/^https:\/\/t\.me\//i.test(value)) return value;
+    if (value.charAt(0) === '@') value = value.slice(1);
+    if (!/^[a-zA-Z0-9_]{5,32}$/.test(value)) return null;
+    return 'https://t.me/' + value;
+  }
+  var phoneValue = director.phone ? String(director.phone).trim() : '';
+  var phoneHref = phoneValue ? 'tel:' + phoneValue.replace(/[^\d+]/g, '') : '';
+  var telegramHref = normalizeTelegramLink(director.telegram);
+  var contactsHtml = '';
+  if (phoneHref) {
+    contactsHtml +=
+      '<a class="contact-btn" style="display:inline-flex;justify-content:center;text-decoration:none;" href="' +
+      escapeAttr(phoneHref) +
+      '">📞 Позвонить</a>';
+  }
+  if (telegramHref) {
+    contactsHtml +=
+      '<a class="detail-btn" style="display:inline-flex;justify-content:center;text-decoration:none;" target="_blank" rel="noopener" href="' +
+      escapeAttr(telegramHref) +
+      '">✈ Telegram</a>';
+  }
+  if (!contactsHtml) {
+    contactsHtml = '<div class="info-text">Контакты пока не указаны</div>';
+  }
   var strengthsHtml = (director.strengthsDetailed || []).map(function (s) {
     var value = s.val != null ? s.val : s.value;
     return '<div class="strength-row"><span class="strength-name">' + escapeHtml(s.name) + '</span><div class="strength-bar"><div class="strength-fill" style="width: ' + (value / 10) * 100 + '%;"></div></div><span class="strength-value">' + value + '</span></div>';
@@ -40,14 +68,13 @@ function showDirectorDetail(director) {
     '<div class="info-section"><h3>🏆 Уникальный опыт и достижения</h3><div class="info-text">' + escapeHtml(director.uniqueExperience || 'Не указано').replace(/\n/g, '<br>') + '</div></div>' +
     '<div class="info-section"><h3>🎯 Личные интересы и увлечения</h3><div class="interests-line">' + (interestsHtml || '<div class="info-text">Не указано</div>') + '</div></div>' +
     (tagsHtml ? '<div class="tags" style="margin-top: 12px;">' + tagsHtml + '</div>' : '') +
-    '<div class="director-actions"><button class="contact-btn" id="contactBtn">💬 Связаться с директором</button></div>' +
+    '<div class="director-actions">' + contactsHtml + '</div>' +
     '<hr style="margin:15px 0; border-color:rgba(255,255,255,0.1);">' +
     '<div style="font-size: 0.7rem; text-align: center; color: rgba(255,255,255,0.45);">Гравитация • Московская область • Карточка участника сообщества</div></div>';
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
   modal.querySelector('.close-modal').addEventListener('click', function () { overlay.remove(); });
-  modal.querySelector('#contactBtn').addEventListener('click', function () { showMessageModal(director.id, director.name); });
   bindSwipeBackToClose(overlay, modal);
 }
 

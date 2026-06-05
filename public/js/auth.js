@@ -259,7 +259,6 @@ function showRegisterModal() {
 function logout() {
   WS.disconnect();
   NOTIF.closeDropdown();
-  if (typeof window.closeMsgDropdown === 'function') window.closeMsgDropdown();
   API.logout()
     .catch(function () {})
     .then(function () {

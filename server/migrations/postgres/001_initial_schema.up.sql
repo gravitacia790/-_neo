@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   experience TEXT,
   interests TEXT,
+  telegram TEXT,
   is_mentor INTEGER NOT NULL DEFAULT 0,
   consent INTEGER NOT NULL DEFAULT 0,
   photo TEXT,

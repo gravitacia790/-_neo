@@ -27,7 +27,7 @@ function renderDirectorCard(d, options) {
     '<button class="favorite-btn' + (d.isFavorite ? ' active' : '') + '" data-action="favorite" data-id="' + d.id + '" aria-pressed="' + (d.isFavorite ? 'true' : 'false') + '">' +
     (d.isFavorite ? '★ В избранном' : '☆ В избранное') +
     '</button>' +
-    '<button class="contact-btn" data-action="contact" data-id="' + d.id + '" data-name="' + escapeHtml(d.name) + '">💬 Связаться</button>' +
+    '<button class="contact-btn" data-action="contact" data-id="' + d.id + '">📞 Связаться</button>' +
     '<button class="detail-btn" data-action="detail" data-id="' + d.id + '">📖 Подробнее</button>' +
     '</div></div>'
   );
