@@ -36,6 +36,10 @@ function resetDirectorsEntryState() {
   updateDirectorsHint();
 }
 
+function getDirectorsCache() {
+  return APPSTATE.getDirectors().cache || [];
+}
+
 function renderDirectors(append) {
   directorsState = APPSTATE.getDirectors();
   if (directorsState.segment === 'mentors') return renderMentors();
@@ -57,7 +61,7 @@ function renderDirectors(append) {
       if (!append) APPSTATE.setDirectorsCache([]);
       APPSTATE.appendDirectorsCache(resp.directors);
       directorsState = APPSTATE.getDirectors();
-      if (!directorsCache.length) {
+      if (!getDirectorsCache().length) {
         renderDirectorsState(container, 'empty', directorsState.searchTerm ? 'По вашему запросу ничего не найдено' : 'Пока нет участников сообщества');
         return;
       }
@@ -90,10 +94,10 @@ function renderFavoriteDirectors() {
     return API.getFavoriteDirectors(directorsState.favoritesSort);
   }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
-      directorsCache = resp.favorites || [];
+      var filteredDirectors = resp.favorites || [];
       if (directorsState.searchTerm) {
         var q = directorsState.searchTerm.toLowerCase();
-        directorsCache = directorsCache.filter(function (d) {
+        filteredDirectors = filteredDirectors.filter(function (d) {
           var haystack = [
             d.name,
             d.school,
@@ -107,7 +111,8 @@ function renderFavoriteDirectors() {
           return haystack.indexOf(q) !== -1;
         });
       }
-      if (!directorsCache.length) {
+      APPSTATE.setDirectorsCache(filteredDirectors);
+      if (!filteredDirectors.length) {
         renderDirectorsState(
           container,
           'empty',
@@ -115,7 +120,7 @@ function renderFavoriteDirectors() {
         );
         return;
       }
-      container.innerHTML = directorsCache.map(function (d) { return renderDirectorCard(d, { compact: true }); }).join('');
+      container.innerHTML = filteredDirectors.map(function (d) { return renderDirectorCard(d, { compact: true }); }).join('');
       container.setAttribute('data-html', container.innerHTML);
       bindDirectorActions(container);
     })
@@ -135,12 +140,13 @@ function renderMentors() {
     return API.getMentors();
   }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
-      directorsCache = resp.mentors || [];
-      if (!directorsCache.length) {
+      var mentors = resp.mentors || [];
+      APPSTATE.setDirectorsCache(mentors);
+      if (!mentors.length) {
         renderDirectorsState(container, 'empty', 'Пока нет наставников');
         return;
       }
-      container.innerHTML = directorsCache.map(function (m) { return renderDirectorCard(m); }).join('');
+      container.innerHTML = mentors.map(function (m) { return renderDirectorCard(m); }).join('');
       container.setAttribute('data-html', container.innerHTML);
       bindDirectorActions(container);
     })

@@ -7,7 +7,7 @@
     API.getExtras(category)
       .then(function (resp) {
         var titleMap = {
-          gl: 'ГЛ',
+          gl: 'Гравитация лидерства',
           internship: 'Стажировка',
           calendar: 'Календарь мероприятий',
         };

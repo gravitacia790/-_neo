@@ -56,14 +56,14 @@ function bindDirectorActions(container) {
   container.querySelectorAll('[data-action="detail"]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var id = btn.getAttribute('data-id');
-      var d = directorsCache.find(function (x) { return String(x.id) === String(id); });
+      var d = getDirectorsCache().find(function (x) { return String(x.id) === String(id); });
       if (d) showDirectorDetail(d);
     });
   });
   container.querySelectorAll('[data-action="contact"]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var id = btn.getAttribute('data-id');
-      var director = directorsCache.find(function (x) { return String(x.id) === String(id); });
+      var director = getDirectorsCache().find(function (x) { return String(x.id) === String(id); });
       openContactActions(director);
     });
   });
