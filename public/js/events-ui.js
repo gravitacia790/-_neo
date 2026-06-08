@@ -26,13 +26,13 @@ function buildEventCardHtml(ev, meId) {
     '<div>👤 Организатор: ' + escapeHtml(ev.creator) + ' (' + escapeHtml(ev.creatorSchool) + ')</div>';
 
   if (ev.registrations.length) {
-    html += '<div><strong>Записавшиеся:</strong><ul>' + ev.registrations.map(function (r) {
-      return '<li>' + escapeHtml(r.employeeName) + ' (' + escapeHtml(r.position) + ') — ' + escapeHtml(r.schoolName) + '</li>';
+    html += '<div class="registration-list"><strong>Записавшиеся:</strong><ul>' + ev.registrations.map(function (r) {
+      return '<li><span>' + escapeHtml(r.employeeName) + '</span><small>' + escapeHtml(r.schoolName) + (r.city ? ' • ' + escapeHtml(r.city) : '') + (r.phone ? ' • ' + escapeHtml(r.phone) : '') + '</small></li>';
     }).join('') + '</ul></div>';
   }
 
   html += '<div class="event-actions">';
-  if (!isCreator) html += '<button data-action="reg" data-id="' + ev.id + '">📝 Записать сотрудника</button>';
+  if (!isCreator) html += '<button data-action="reg" data-id="' + ev.id + '">📝 Зарегистрироваться</button>';
   if (isCreator) html += '<button data-action="del" data-id="' + ev.id + '" style="background:#ff4757;">🗑 Удалить</button>';
   html += '</div></div>';
   return html;

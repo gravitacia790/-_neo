@@ -22,8 +22,8 @@ const frontendGlobals = [
   'renderStaticViews', 'initStaticViewBindings', 'initApp',
   'renderProfileView', 'renderSchoolView', 'renderEventsView', 'renderDirectorsView', 'renderMentorsView', 'renderExpertView',
   'clearFormErrors', 'markFieldInvalid', 'showFormStatus', 'setButtonBusy', 'collectFormData', 'validateProfileForm', 'validateSchoolForm', 'initPhotoUpload'
-  , 'renderEventsState', 'buildEventCardHtml', 'bindEventListActions',
-  'renderDirectorCard', 'renderDirectorsState', 'bindDirectorActions', 'normalizeMaxLink'
+  , 'renderEventsState', 'buildEventCardHtml', 'bindEventListActions', 'openRegistrationModal',
+  'renderDirectorCard', 'renderDirectorsState', 'bindDirectorActions', 'getDirectorsCache', 'normalizeMaxLink'
 ];
 
 module.exports = [

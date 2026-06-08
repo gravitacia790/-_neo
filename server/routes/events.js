@@ -18,6 +18,8 @@ const registerSchema = z.object({
   employeeName: z.string().min(1).max(200),
   position: z.string().min(1).max(200),
   schoolName: z.string().min(1).max(300),
+  phone: z.string().max(40).optional().default(''),
+  city: z.string().max(200).optional().default(''),
 });
 const eventIdSchema = z.coerce.number().int().positive();
 

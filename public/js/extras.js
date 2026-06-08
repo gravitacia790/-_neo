@@ -20,8 +20,8 @@
             '<p>📅 ' + escapeHtml(event.date) + '</p>' +
             '<p>' + escapeHtml(event.description) + '</p>' +
             '<button class="save-btn" style="margin-top:10px; padding:8px;" data-action="reg" data-id="' + escapeHtml(event.id) + '" data-title="' + escapeHtml(event.title) + '">📝 Зарегистрироваться</button>' +
-            (regs.length ? '<div style="margin-top:12px;"><strong>Записавшиеся:</strong><ul>' + regs.map(function (r) {
-              return '<li>' + escapeHtml(r.employeeName) + ' (' + escapeHtml(r.position) + ') — ' + escapeHtml(r.schoolName) + '</li>';
+            (regs.length ? '<div class="registration-list"><strong>Записавшиеся:</strong><ul>' + regs.map(function (r) {
+              return '<li><span>' + escapeHtml(r.employeeName) + '</span><small>' + escapeHtml(r.schoolName) + (r.city ? ' • ' + escapeHtml(r.city) : '') + (r.phone ? ' • ' + escapeHtml(r.phone) : '') + '</small></li>';
             }).join('') + '</ul></div>' : '') +
             '</div>';
         });
@@ -30,25 +30,15 @@
           btn.addEventListener('click', function () {
             var eventId = btn.getAttribute('data-id');
             var title = btn.getAttribute('data-title');
-            var user = API.getUser() || {};
-            var employeeName = prompt('ФИО сотрудника:', user.name || '');
-            if (!employeeName) return;
-            var position = prompt('Должность:', 'Директор');
-            if (!position) return;
-            var school = prompt('От какой школы?', getCurrentSchoolName());
-            if (!school) return;
-            API.registerForExtra(category, eventId, {
-              employeeName: employeeName,
-              position: position,
-              schoolName: school,
-            })
-              .then(function () {
-                notify('Сотрудник ' + employeeName + ' успешно зарегистрирован на "' + title + '"');
+            openRegistrationModal({
+              onSubmit: function (data) {
+                return API.registerForExtra(category, eventId, data);
+              },
+              successMessage: 'Участник зарегистрирован на "' + title + '"',
+              onSuccess: function () {
                 renderCategory(category, containerId);
-              })
-              .catch(function (err) {
-                notify(err.message || 'Ошибка');
-              });
+              },
+            });
           });
         });
       })

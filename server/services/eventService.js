@@ -22,13 +22,20 @@ async function listEvents(page, limit) {
   const creatorIds = [...new Set(events.map((e) => e.creator_id))];
   const allRegs = await db
     .prepare(
-      `SELECT event_id, employee_name, position, school_name, registered_at FROM event_registrations WHERE event_id IN (${placeholders}) ORDER BY registered_at`
+      `SELECT event_id, employee_name, position, school_name, phone, city, registered_at FROM event_registrations WHERE event_id IN (${placeholders}) ORDER BY registered_at`
     )
     .all(...eventIds);
   const regsByEvent = {};
   for (const r of allRegs) {
     if (!regsByEvent[r.event_id]) regsByEvent[r.event_id] = [];
-    regsByEvent[r.event_id].push({ employeeName: r.employee_name, position: r.position, schoolName: r.school_name, registeredAt: r.registered_at });
+    regsByEvent[r.event_id].push({
+      employeeName: r.employee_name,
+      position: r.position,
+      schoolName: r.school_name,
+      phone: r.phone || '',
+      city: r.city || '',
+      registeredAt: r.registered_at,
+    });
   }
   const cPlaceholders = creatorIds.map(() => '?').join(',');
   const creators = await db
@@ -114,9 +121,9 @@ async function registerForEvent(user, eventId, data) {
     if (count >= ev.max_participants) return { error: 'Максимум участников', status: 409 };
     await trx
       .prepare(
-        'INSERT INTO event_registrations (event_id, employee_name, position, school_name, registered_by) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO event_registrations (event_id, employee_name, position, school_name, phone, city, registered_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(ev.id, data.employeeName, data.position, data.schoolName, user.id);
+      .run(ev.id, data.employeeName, data.position, data.schoolName, data.phone || '', data.city || '', user.id);
     return { ev };
   })();
   if (result.error) return result;

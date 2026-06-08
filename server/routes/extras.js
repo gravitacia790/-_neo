@@ -76,6 +76,8 @@ const regSchema = z.object({
   employeeName: z.string().min(1).max(200),
   position: z.string().min(1).max(200),
   schoolName: z.string().min(1).max(300),
+  phone: z.string().max(40).optional().default(''),
+  city: z.string().max(200).optional().default(''),
 });
 
 router.get(
@@ -87,7 +89,7 @@ router.get(
     const items = await Promise.all(CATALOG[cat].map(async (item) => {
       const regs = await db
         .prepare(
-          'SELECT employee_name, position, school_name, registered_at FROM extra_registrations WHERE category = ? AND event_id = ? ORDER BY registered_at'
+          'SELECT employee_name, position, school_name, phone, city, registered_at FROM extra_registrations WHERE category = ? AND event_id = ? ORDER BY registered_at'
         )
         .all(cat, item.id);
       return {
@@ -96,6 +98,8 @@ router.get(
           employeeName: r.employee_name,
           position: r.position,
           schoolName: r.school_name,
+          phone: r.phone || '',
+          city: r.city || '',
           registeredAt: r.registered_at,
         })),
       };
@@ -114,11 +118,11 @@ router.post(
     if (!item) return res.status(404).json({ error: 'Событие не найдено' });
     const parsed = regSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
-    const { employeeName, position, schoolName } = parsed.data;
+    const { employeeName, position, schoolName, phone, city } = parsed.data;
     await db.prepare(
-      `INSERT INTO extra_registrations (category, event_id, employee_name, position, school_name, registered_by)
-     VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(cat, item.id, employeeName, position, schoolName, req.user.id);
+      `INSERT INTO extra_registrations (category, event_id, employee_name, position, school_name, phone, city, registered_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(cat, item.id, employeeName, position, schoolName, phone || '', city || '', req.user.id);
     await addActivity(req.user.id, 'participation', `Зарегистрировал(а) ${employeeName} на "${item.title}" (${cat})`, 2);
     const typeMap = {
       gl: 'gl_registered',

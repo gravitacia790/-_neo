@@ -1688,6 +1688,43 @@ body.nav-sheet-open {
   border-bottom: 1px solid var(--border-faint);
 }
 
+.registration-list {
+  margin-top: 12px;
+}
+
+.registration-list strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  color: var(--charcoal);
+}
+
+.registration-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.registration-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-faint);
+  font-size: 0.8rem;
+}
+
+.registration-list li span {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.registration-list li small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .event-card button {
   padding: 8px 16px;
   border: none;
@@ -2306,6 +2343,15 @@ body.nav-sheet-open {
   color: var(--text-muted);
   line-height: 1.5;
   margin: -8px 0 16px;
+}
+
+.registration-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.registration-form .save-btn {
+  margin-top: 4px;
 }
 
 /* ── Contact Actions ── */
