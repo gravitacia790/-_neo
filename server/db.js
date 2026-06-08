@@ -113,8 +113,6 @@ async function seedDemoDirectors() {
   if (process.env.RESTORE_DEMO_DIRECTORS === 'true') {
     await db.prepare("DELETE FROM users WHERE role = 'director'").run();
   }
-  const countRow = await db.prepare('SELECT COUNT(*) AS c FROM users WHERE role = ?').get('director');
-  if (Number(countRow.c) > 0) return;
 
   const demos = [
     {
@@ -275,6 +273,7 @@ async function seedDemoDirectors() {
     },
   ];
 
+  let insertedCount = 0;
   const tx = db.transaction(async (trx) => {
     const insertUser = trx.prepare(
       `INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director') RETURNING id`
@@ -294,6 +293,9 @@ async function seedDemoDirectors() {
 
     const hash = bcrypt.hashSync('demo1234', 10);
     for (const d of demos) {
+      const existing = await trx.prepare('SELECT id FROM users WHERE email = ?').get(d.email);
+      if (existing) continue;
+
       const info = await insertUser.run(d.email, hash, d.name, d.phone);
       const uid = info.lastInsertRowid;
       await insertProfile.run(uid, d.profile.experience, d.profile.interests, d.profile.is_mentor, d.city);
@@ -320,10 +322,13 @@ async function seedDemoDirectors() {
         d.school.want_to_know
       );
       await insertRating.run(uid, d.rating);
+      insertedCount += 1;
     }
   });
   await tx();
-  logger.info('db.demo_seeded', { directors: demos.length });
+  if (insertedCount > 0) {
+    logger.info('db.demo_seeded', { directors: insertedCount });
+  }
 }
 
 async function init() {

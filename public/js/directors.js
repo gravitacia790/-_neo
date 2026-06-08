@@ -21,6 +21,21 @@ function setDirectorSegment(segment) {
   }
 }
 
+function resetDirectorsEntryState() {
+  setDirectorSegment('all');
+  APPSTATE.setDirectorsSearchTerm('');
+  directorsState = APPSTATE.getDirectors();
+  var input = document.getElementById('directorSearchInput');
+  if (input) input.value = '';
+  var root = document.getElementById('directorSegments');
+  if (root) {
+    root.querySelectorAll('[data-segment]').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-segment') === directorsState.segment);
+    });
+  }
+  updateDirectorsHint();
+}
+
 function renderDirectors(append) {
   directorsState = APPSTATE.getDirectors();
   if (directorsState.segment === 'mentors') return renderMentors();

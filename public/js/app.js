@@ -1,4 +1,4 @@
-/* global SHELLDOM, bindDirectorSegments, bindFavoritesSort */
+/* global SHELLDOM, bindDirectorSegments, bindFavoritesSort, resetDirectorsEntryState, renderDirectors */
 var APP_RUNTIME = {
   tabsInitialized: false,
   shellScrollBound: false,
@@ -35,14 +35,25 @@ function syncMobileNavVisibility(state) {
 }
 
 function showMainApp() {
+  var tabsWereInitialized = APP_RUNTIME.tabsInitialized;
   setAppState('app');
   syncShellScrollState();
   SHELLDOM.syncAdminVisibility(isAdmin());
+  if (typeof resetDirectorsEntryState === 'function') {
+    resetDirectorsEntryState();
+  }
   if (!APP_RUNTIME.tabsInitialized) {
     initTabs();
     APP_RUNTIME.tabsInitialized = true;
   }
   ensureActiveTabFallback();
+  if (tabsWereInitialized) {
+    if (typeof window.switchAppTab === 'function') {
+      window.switchAppTab('directors', { trackHistory: false, forceRender: true });
+    } else {
+      renderDirectors(false);
+    }
+  }
   loadUserDataIntoForms().catch(function () {
     // Keep navigation usable even if profile data temporarily fails to load.
   }).then(function () {

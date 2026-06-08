@@ -7,15 +7,15 @@
     API.getExtras(category)
       .then(function (resp) {
         var titleMap = {
-          gl: '⭐ Гравитация лидерства',
-          internship: '🎓 Стажировка',
-          calendar: '📅 Календарь мероприятий',
+          gl: 'ГЛ',
+          internship: 'Стажировка',
+          calendar: 'Календарь мероприятий',
         };
-        var html = '<h2>' + titleMap[category] + '</h2>';
+        var html = '<h2 class="tab-title">' + titleMap[category] + '</h2>';
         resp.items.forEach(function (event) {
           var regs = event.registrations || [];
           html +=
-            '<div class="new-section-card" data-id="' + escapeHtml(event.id) + '">' +
+            '<div class="new-section-card extra-card" data-id="' + escapeHtml(event.id) + '">' +
             '<h3>' + escapeHtml(event.title) + '</h3>' +
             '<p>📅 ' + escapeHtml(event.date) + '</p>' +
             '<p>' + escapeHtml(event.description) + '</p>' +
@@ -122,7 +122,7 @@
         var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
         var html = '';
         html += '<style>.cal-day{cursor:default;transition:background 0.2s,color 0.2s;}.cal-day:hover:not(.cal-today){background:var(--crimson-mist)!important;}.cal-today:hover{background:var(--crimson-dark)!important;}.cal-nav{transition:all 0.2s;}.cal-nav:hover{background:var(--crimson-mist)!important;border-color:var(--crimson)!important;color:var(--crimson)!important;}</style>';
-        html += '<h2 class="tab-title">📅 Календарь мероприятий</h2>';
+        html += '<h2 class="tab-title">Календарь мероприятий</h2>';
         html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">';
         html += '<button class="cal-nav" data-dir="prev" style="background:var(--white);border:1.5px solid var(--border-light);color:var(--text-secondary);padding:8px 16px;border-radius:40px;cursor:pointer;font-size:0.85rem;font-weight:600;font-family:Manrope,sans-serif;">◀</button>';
         html += '<span style="font-family:\'Playfair Display\',Georgia,serif;font-size:1.2rem;font-weight:700;color:var(--charcoal);">' + monthNames[month] + ' ' + year + '</span>';

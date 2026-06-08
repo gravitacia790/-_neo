@@ -18,7 +18,7 @@ function initTabs() {
   var sheetTouchStartY = 0;
   var sheetTouchCurrentY = 0;
   var sheetDragging = false;
-  var activeTabId = 'directors';
+  var activeTabId = null;
   var navHistory = [];
   var swipeTrack = null;
   var swipeSettleTimer = null;
@@ -189,15 +189,27 @@ function initTabs() {
     mainContent.setAttribute('data-active-tab', tabId);
   }
 
+  function renderTabContent(tabId) {
+    if (tabId === 'directors') renderDirectors();
+    if (tabId === 'events') renderEvents();
+    if (tabId === 'expert') renderExpertView();
+    if (tabId === 'profile') updateProfileRatingDisplay();
+    if (tabId === 'gl') renderGL();
+    if (tabId === 'internship') renderInternship();
+    if (tabId === 'calendar') renderCalendar();
+    if (tabId === 'admin' && isAdmin()) renderAdminPanel();
+  }
+
   function switchTab(tabId, opts) {
     opts = opts || {};
     var trackHistory = opts.trackHistory !== false;
     if (!tabId || allTabs.indexOf(tabId) === -1) return;
     if (activeTabId === tabId) {
       closeMoreMenus();
+      if (opts.forceRender) renderTabContent(tabId);
       return;
     }
-    if (trackHistory) pushHistory(activeTabId);
+    if (trackHistory && activeTabId) pushHistory(activeTabId);
 
     allTabs.forEach(function (id) {
       var el = document.getElementById(id);
@@ -224,17 +236,12 @@ function initTabs() {
     syncShellState(tabId);
     closeMoreMenus();
 
-    if (tabId === 'directors') renderDirectors();
-    if (tabId === 'events') renderEvents();
-    if (tabId === 'expert') renderExpertView();
-    if (tabId === 'profile') updateProfileRatingDisplay();
-    if (tabId === 'gl') renderGL();
-    if (tabId === 'internship') renderInternship();
-    if (tabId === 'calendar') renderCalendar();
-    if (tabId === 'admin' && isAdmin()) renderAdminPanel();
+    renderTabContent(tabId);
 
     document.getElementById('mainContent').scrollTop = scrollMemory[tabId] || 0;
   }
+
+  window.switchAppTab = switchTab;
 
   navBtns.forEach(function (btn) {
     var tabId = btn.getAttribute('data-tab');
