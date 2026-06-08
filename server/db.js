@@ -107,7 +107,9 @@ async function ensureAdmin() {
 }
 
 async function seedDemoDirectors() {
-  if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO !== 'true') return;
+  var demoModeEnabled = process.env.DEMO_MODE === 'true';
+  var seedDemoEnabled = process.env.SEED_DEMO === 'true';
+  if (process.env.NODE_ENV === 'production' && !demoModeEnabled && !seedDemoEnabled) return;
   if (process.env.RESTORE_DEMO_DIRECTORS === 'true') {
     await db.prepare("DELETE FROM users WHERE role = 'director'").run();
   }
