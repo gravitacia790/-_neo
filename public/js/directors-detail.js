@@ -1,3 +1,15 @@
+function normalizeMaxLink(rawValue) {
+  if (!rawValue) return null;
+  var value = String(rawValue).trim();
+  if (!value) return null;
+  if (/^https?:\/\/max\.ru\//i.test(value)) return value.replace(/^http:\/\//i, 'https://');
+  if (/^max\.ru\//i.test(value)) return 'https://' + value;
+  if (value.charAt(0) === '@') value = value.slice(1);
+  if (!/^[a-zA-Z0-9_.-]{3,64}$/.test(value)) return null;
+  return 'https://max.ru/' + value;
+}
+window.normalizeMaxLink = normalizeMaxLink;
+
 function showDirectorDetail(director) {
   var existingOverlay = document.querySelector('.modal-overlay');
   if (existingOverlay) existingOverlay.remove();
@@ -10,18 +22,9 @@ function showDirectorDetail(director) {
 
   var modal = document.createElement('div');
   modal.className = 'modal-content';
-  function normalizeTelegramLink(rawValue) {
-    if (!rawValue) return null;
-    var value = String(rawValue).trim();
-    if (!value) return null;
-    if (/^https:\/\/t\.me\//i.test(value)) return value;
-    if (value.charAt(0) === '@') value = value.slice(1);
-    if (!/^[a-zA-Z0-9_]{5,32}$/.test(value)) return null;
-    return 'https://t.me/' + value;
-  }
   var phoneValue = director.phone ? String(director.phone).trim() : '';
   var phoneHref = phoneValue ? 'tel:' + phoneValue.replace(/[^\d+]/g, '') : '';
-  var telegramHref = normalizeTelegramLink(director.telegram);
+  var maxHref = normalizeMaxLink(director.telegram);
   var contactsHtml = '';
   if (phoneHref) {
     contactsHtml +=
@@ -29,11 +32,11 @@ function showDirectorDetail(director) {
       escapeAttr(phoneHref) +
       '">📞 Позвонить</a>';
   }
-  if (telegramHref) {
+  if (maxHref) {
     contactsHtml +=
       '<a class="detail-btn" style="display:inline-flex;justify-content:center;text-decoration:none;" target="_blank" rel="noopener" href="' +
-      escapeAttr(telegramHref) +
-      '">✈ Telegram</a>';
+      escapeAttr(maxHref) +
+      '">MAX</a>';
   }
   if (!contactsHtml) {
     contactsHtml = '<div class="info-text">Контакты пока не указаны</div>';

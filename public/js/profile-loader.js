@@ -25,7 +25,7 @@ function loadUserDataIntoForms() {
         emailEl.title = 'Email изменяется только администратором';
       }
       document.getElementById('directorPhone').value = profile.phone || '';
-      document.getElementById('directorTelegram').value = profile.telegram || '';
+      document.getElementById('directorMax').value = profile.telegram || '';
       document.getElementById('uniqueExperience').value = profile.experience || '';
       document.getElementById('personalInterests').value = profile.interests || '';
       document.getElementById('mentorCheckbox').checked = !!profile.isMentor;

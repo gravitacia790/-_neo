@@ -1,9 +1,13 @@
 const express = require('express');
+const { z } = require('zod');
 const { db } = require('../db');
 const authRequired = require('../middleware/authRequired');
 const { safe } = require('../middleware/safe');
 
 const router = express.Router();
+const markReadSchema = z.object({
+  ids: z.array(z.coerce.number().int().positive()).max(200).optional().default([]),
+});
 
 router.get('/', authRequired, safe('notifications')(async (req, res) => {
   const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -34,7 +38,9 @@ router.get('/', authRequired, safe('notifications')(async (req, res) => {
 }));
 
 router.put('/read', authRequired, safe('notifications')(async (req, res) => {
-  const { ids } = req.body;
+  const parsed = markReadSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные', details: parsed.error.issues });
+  const ids = parsed.data.ids;
   if (Array.isArray(ids) && ids.length > 0) {
     const placeholders = ids.map(() => '?').join(',');
     await db.prepare(

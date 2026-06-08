@@ -91,7 +91,6 @@ async function saveProfile(userId, profile) {
 
     await trx.prepare('DELETE FROM profile_strengths WHERE user_id = ?').run(userId);
     await trx.prepare('DELETE FROM profile_skills WHERE user_id = ?').run(userId);
-    await trx.prepare('DELETE FROM profile_tags WHERE user_id = ?').run(userId);
 
     const insertStrength = trx.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
     for (const strength of profile.strengths || []) await insertStrength.run(userId, strength.name, strength.val);
@@ -99,8 +98,11 @@ async function saveProfile(userId, profile) {
     const insertSkill = trx.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
     for (const skill of profile.skills || []) await insertSkill.run(userId, skill.name, skill.level);
 
-    const insertTag = trx.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
-    for (const tag of profile.tags || []) await insertTag.run(userId, tag);
+    if (Array.isArray(profile.tags)) {
+      await trx.prepare('DELETE FROM profile_tags WHERE user_id = ?').run(userId);
+      const insertTag = trx.prepare('INSERT INTO profile_tags (user_id, tag) VALUES (?, ?)');
+      for (const tag of profile.tags) await insertTag.run(userId, tag);
+    }
   });
   await tx();
 

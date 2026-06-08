@@ -21,3 +21,5 @@ docs/
 archive/
 coverage/
 *.docx
+playwright-report/
+test-results/

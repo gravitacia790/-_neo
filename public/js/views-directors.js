@@ -20,8 +20,4 @@ function renderDirectorsView() {
     '<div id="directorsList" class="directors-grid"></div>';
 }
 
-function renderMentorsView() {
-  var el = document.getElementById('mentors');
-  if (!el) return;
-  el.innerHTML = '<h2 class="tab-title">Потенциальные наставники</h2><div id="mentorsList"></div>';
-}
+function renderMentorsView() {}

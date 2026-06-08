@@ -99,7 +99,9 @@ router.post(
   safe('auth')(async (req, res) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
-    res.json(await createResetToken(parsed.data.email));
+    const result = await createResetToken(parsed.data.email);
+    if (result && result.error && result.status) return res.status(result.status).json({ error: result.error });
+    res.json(result);
   })
 );
 

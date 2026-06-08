@@ -3,7 +3,7 @@ const globals = require('globals');
 const prettier = require('eslint-config-prettier');
 
 const frontendGlobals = [
-  'API', 'escapeHtml', 'escapeAttr', 'notify', 'showModal',
+  'API', 'APPSTATE', 'escapeHtml', 'escapeAttr', 'notify', 'showModal',
   'getCurrentUserEmail', 'getCurrentUserName', 'isAdmin',
   'getCurrentDirectorName', 'getCurrentSchoolName',
   'setMyProfileCache', 'getMyProfileCache', 'getMySchoolCache',
@@ -17,13 +17,13 @@ const frontendGlobals = [
   'loadUserDataIntoForms', 'bindCreateEvent', 'bindDirectorSearch',
   'showDirectorDetail', 'promptAndRegister', 'pendingPhotoFile',
   'currentSearchTerm', '__currentPage', '__totalPages', '__searchTimer',
-  'toast', 'WS', 'NOTIF',
+  'WS', 'NOTIF',
   'openMsgDropdown', 'showMessageModal',
   'renderStaticViews', 'initStaticViewBindings', 'initApp',
   'renderProfileView', 'renderSchoolView', 'renderEventsView', 'renderDirectorsView', 'renderMentorsView', 'renderExpertView',
   'clearFormErrors', 'markFieldInvalid', 'showFormStatus', 'setButtonBusy', 'collectFormData', 'validateProfileForm', 'validateSchoolForm', 'initPhotoUpload'
   , 'renderEventsState', 'buildEventCardHtml', 'bindEventListActions',
-  'renderDirectorCard', 'renderDirectorsState', 'renderMentorCard', 'bindDirectorActions'
+  'renderDirectorCard', 'renderDirectorsState', 'bindDirectorActions', 'normalizeMaxLink'
 ];
 
 module.exports = [
@@ -34,6 +34,12 @@ module.exports = [
   {
     files: ['eslint.config.js'],
     languageOptions: { globals: globals.node }
+  },
+  // Playwright E2E + config
+  {
+    files: ['e2e/**/*.js', 'playwright.config.js'],
+    languageOptions: { globals: globals.node, sourceType: 'commonjs' },
+    rules: { 'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }], 'no-console': 'off' }
   },
   // Бэкенд + скрипты
   {
@@ -59,6 +65,19 @@ module.exports = [
       'no-var': 'off',
       'prefer-const': 'off',
       'no-console': 'off'
+    }
+  },
+  // Service Worker
+  {
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: { ...globals.serviceworker },
+      sourceType: 'script'
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      'no-var': 'off',
+      'prefer-const': 'off'
     }
   },
   // Тесты

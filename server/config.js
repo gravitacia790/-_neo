@@ -1,13 +1,14 @@
 const { z } = require('zod');
 
 const envSchema = z.object({
-  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  PORT: z.coerce.number().int().min(0).max(65535).default(3000),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET должен быть не короче 32 символов'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ADMIN_EMAIL: z.string().email().optional().or(z.literal('')),
   ADMIN_PASSWORD: z.string().optional().or(z.literal('')),
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(1),
+  DATABASE_URL: z.string().optional().or(z.literal('')),
   COOKIE_DOMAIN: z.string().optional().or(z.literal('')),
   VAPID_SUBJECT: z.string().optional().or(z.literal('')),
   VAPID_PUBLIC_KEY: z.string().optional().or(z.literal('')),
@@ -22,6 +23,9 @@ function validateConfig(env) {
   }
 
   const config = parsed.data;
+  if (config.NODE_ENV !== 'test' && !config.DATABASE_URL) {
+    throw new Error('[config] DATABASE_URL обязателен для запуска вне test-среды');
+  }
   if (config.NODE_ENV === 'production') {
     if (!config.ADMIN_EMAIL || !config.ADMIN_PASSWORD) {
       throw new Error('[config] В production должны быть заданы ADMIN_EMAIL и ADMIN_PASSWORD');

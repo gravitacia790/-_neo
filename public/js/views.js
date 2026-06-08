@@ -3,7 +3,6 @@ function renderStaticViews() {
   renderSchoolView();
   renderEventsView();
   renderDirectorsView();
-  renderMentorsView();
   renderExpertView();
 }
 

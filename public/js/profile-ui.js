@@ -130,11 +130,12 @@ function updateProfileRatingDisplay() {
         '</div></div>';
       var toggle = document.getElementById('ratingPublicToggle');
       if (toggle) {
+        if (toggle.dataset.bound === 'true') return;
+        toggle.dataset.bound = 'true';
         toggle.addEventListener('change', function (e) {
           setRatingPublic(e.target.checked).then(function () {
             updateProfileRatingDisplay();
             renderDirectors();
-            renderMentors();
           });
         });
       }

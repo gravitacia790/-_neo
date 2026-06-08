@@ -55,6 +55,10 @@ var API = (function () {
           var err = new Error((data && data.error) || 'HTTP ' + res.status);
           err.status = res.status;
           err.data = data;
+          if (res.status === 401 && url.indexOf('/api/auth/') !== 0) {
+            clearUser();
+            if (typeof window.showSplash === 'function') window.showSplash();
+          }
           throw err;
         }
         return data;

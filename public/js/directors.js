@@ -1,13 +1,8 @@
 /* global getUiErrorMessage, retryPromise, isRetriableApiError */
-var currentSearchTerm = '';
-var __searchTimer = null;
-var __currentPage = 1;
-var __totalPages = 1;
 var DIRECTOR_SEGMENT_KEY = 'directors.segment';
 var DIRECTOR_FAVORITES_SORT_KEY = 'directors.favorites.sort';
-var __directorSegment = 'all';
-var __favoritesSort = 'recent';
-window.__directorSegment = __directorSegment;
+var directorsState = APPSTATE.getDirectors();
+window.__directorSegment = directorsState.segment;
 
 function normalizeDirectorSegment(segment) {
   if (segment === 'all' || segment === 'mentors' || segment === 'favorites') return segment;
@@ -15,21 +10,24 @@ function normalizeDirectorSegment(segment) {
 }
 
 function setDirectorSegment(segment) {
-  __directorSegment = normalizeDirectorSegment(segment);
-  window.__directorSegment = __directorSegment;
+  var normalized = normalizeDirectorSegment(segment);
+  APPSTATE.setDirectorsSegment(normalized);
+  directorsState = APPSTATE.getDirectors();
+  window.__directorSegment = directorsState.segment;
   try {
-    localStorage.setItem(DIRECTOR_SEGMENT_KEY, __directorSegment);
+    localStorage.setItem(DIRECTOR_SEGMENT_KEY, directorsState.segment);
   } catch (_) {
     // ignore storage errors
   }
 }
 
 function renderDirectors(append) {
-  if (__directorSegment === 'mentors') return renderMentors();
-  if (__directorSegment === 'favorites') return renderFavoriteDirectors();
+  directorsState = APPSTATE.getDirectors();
+  if (directorsState.segment === 'mentors') return renderMentors();
+  if (directorsState.segment === 'favorites') return renderFavoriteDirectors();
   if (!append) {
-    __currentPage = 1;
-    __totalPages = 1;
+    APPSTATE.resetDirectorsPagination();
+    directorsState = APPSTATE.getDirectors();
   }
   var container = document.getElementById('directorsList');
   if (!container) return;
@@ -37,20 +35,21 @@ function renderDirectors(append) {
   if (!append) renderDirectorsState(container, 'loading');
 
   retryPromise(function () {
-    return API.getDirectors(currentSearchTerm, __currentPage, 20);
+    return API.getDirectors(directorsState.searchTerm, directorsState.page, 20);
   }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
-      __totalPages = resp.pagination.totalPages;
-      if (!append) directorsCache = [];
-      directorsCache = directorsCache.concat(resp.directors);
+      APPSTATE.setDirectorsPage(directorsState.page, resp.pagination.totalPages);
+      if (!append) APPSTATE.setDirectorsCache([]);
+      APPSTATE.appendDirectorsCache(resp.directors);
+      directorsState = APPSTATE.getDirectors();
       if (!directorsCache.length) {
-        renderDirectorsState(container, 'empty', currentSearchTerm ? 'По вашему запросу ничего не найдено' : 'Пока нет участников сообщества');
+        renderDirectorsState(container, 'empty', directorsState.searchTerm ? 'По вашему запросу ничего не найдено' : 'Пока нет участников сообщества');
         return;
       }
       var html = append ? container.getAttribute('data-html') || '' : '';
       resp.directors.forEach(function (d) { html += renderDirectorCard(d); });
-      if (__currentPage < __totalPages) {
-        html += '<button class="save-btn load-more-btn" id="loadMoreBtn" style="width:100%; margin-top:16px;">Показать ещё (' + (__totalPages - __currentPage) + ' стр.)</button>';
+      if (directorsState.page < directorsState.totalPages) {
+        html += '<button class="save-btn load-more-btn" id="loadMoreBtn" style="width:100%; margin-top:16px;">Показать ещё (' + (directorsState.totalPages - directorsState.page) + ' стр.)</button>';
       }
       container.innerHTML = html;
       container.setAttribute('data-html', html);
@@ -73,12 +72,12 @@ function renderFavoriteDirectors() {
   updateDirectorsHint();
   renderDirectorsState(container, 'loading');
   retryPromise(function () {
-    return API.getFavoriteDirectors(__favoritesSort);
+    return API.getFavoriteDirectors(directorsState.favoritesSort);
   }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
       directorsCache = resp.favorites || [];
-      if (currentSearchTerm) {
-        var q = currentSearchTerm.toLowerCase();
+      if (directorsState.searchTerm) {
+        var q = directorsState.searchTerm.toLowerCase();
         directorsCache = directorsCache.filter(function (d) {
           var haystack = [
             d.name,
@@ -97,7 +96,7 @@ function renderFavoriteDirectors() {
         renderDirectorsState(
           container,
           'empty',
-          currentSearchTerm ? 'По вашему запросу в избранном ничего не найдено' : 'В избранном пока пусто'
+          directorsState.searchTerm ? 'По вашему запросу в избранном ничего не найдено' : 'В избранном пока пусто'
         );
         return;
       }
@@ -147,8 +146,9 @@ function bindDirectorSegments() {
     initialSegment = 'all';
   }
   setDirectorSegment(initialSegment);
+  directorsState = APPSTATE.getDirectors();
   root.querySelectorAll('[data-segment]').forEach(function (b) {
-    b.classList.toggle('active', b.getAttribute('data-segment') === __directorSegment);
+    b.classList.toggle('active', b.getAttribute('data-segment') === directorsState.segment);
   });
   updateDirectorsHint();
 
@@ -168,14 +168,15 @@ function updateDirectorsHint() {
   var input = document.getElementById('directorSearchInput');
   var toolbar = document.getElementById('favoritesToolbar');
   if (!hint) return;
-  if (toolbar) toolbar.hidden = __directorSegment !== 'favorites';
-  if (__directorSegment === 'favorites') {
+  directorsState = APPSTATE.getDirectors();
+  if (toolbar) toolbar.hidden = directorsState.segment !== 'favorites';
+  if (directorsState.segment === 'favorites') {
     hint.textContent =
       'Избранное: быстрый доступ к важным контактам. Здесь можно искать только среди сохраненных директоров.';
     if (input) input.placeholder = 'Поиск по избранным: имя, школа, тема...';
     return;
   }
-  if (__directorSegment === 'mentors') {
+  if (directorsState.segment === 'mentors') {
     hint.textContent = 'Наставники: директора с открытой экспертной поддержкой.';
     if (input) input.placeholder = 'Поиск наставника по имени, школе, теме...';
     return;
@@ -188,21 +189,26 @@ function bindFavoritesSort() {
   var select = document.getElementById('favoritesSortSelect');
   if (!select) return;
   try {
-    __favoritesSort = localStorage.getItem(DIRECTOR_FAVORITES_SORT_KEY) || 'recent';
+    APPSTATE.setDirectorsFavoritesSort(localStorage.getItem(DIRECTOR_FAVORITES_SORT_KEY) || 'recent');
   } catch (_) {
-    __favoritesSort = 'recent';
+    APPSTATE.setDirectorsFavoritesSort('recent');
   }
-  if (__favoritesSort !== 'name' && __favoritesSort !== 'recent') __favoritesSort = 'recent';
-  select.value = __favoritesSort;
+  directorsState = APPSTATE.getDirectors();
+  if (directorsState.favoritesSort !== 'name' && directorsState.favoritesSort !== 'recent') {
+    APPSTATE.setDirectorsFavoritesSort('recent');
+    directorsState = APPSTATE.getDirectors();
+  }
+  select.value = directorsState.favoritesSort;
   if (select.dataset.bound === 'true') return;
   select.dataset.bound = 'true';
   select.addEventListener('change', function () {
-    __favoritesSort = select.value === 'name' ? 'name' : 'recent';
+    APPSTATE.setDirectorsFavoritesSort(select.value === 'name' ? 'name' : 'recent');
+    directorsState = APPSTATE.getDirectors();
     try {
-      localStorage.setItem(DIRECTOR_FAVORITES_SORT_KEY, __favoritesSort);
+      localStorage.setItem(DIRECTOR_FAVORITES_SORT_KEY, directorsState.favoritesSort);
     } catch (_) {
       // ignore storage errors
     }
-    if (__directorSegment === 'favorites') renderFavoriteDirectors();
+    if (directorsState.segment === 'favorites') renderFavoriteDirectors();
   });
 }

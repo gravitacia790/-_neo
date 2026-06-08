@@ -19,6 +19,7 @@ const registerSchema = z.object({
   position: z.string().min(1).max(200),
   schoolName: z.string().min(1).max(300),
 });
+const eventIdSchema = z.coerce.number().int().positive();
 
 router.get(
   '/',
@@ -44,10 +45,12 @@ router.post(
   '/:id/register',
   authRequired,
   safe('events')(async (req, res) => {
+    const parsedId = eventIdSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Некорректный ID мероприятия' });
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
 
-    const result = await registerForEvent(req.user, req.params.id, parsed.data);
+    const result = await registerForEvent(req.user, parsedId.data, parsed.data);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })
@@ -57,7 +60,9 @@ router.delete(
   '/:id',
   authRequired,
   safe('events')(async (req, res) => {
-    const result = await deleteEvent(req.user, req.params.id);
+    const parsedId = eventIdSchema.safeParse(req.params.id);
+    if (!parsedId.success) return res.status(400).json({ error: 'Некорректный ID мероприятия' });
+    const result = await deleteEvent(req.user, parsedId.data);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })

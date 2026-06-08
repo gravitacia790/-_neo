@@ -1,11 +1,9 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
-const JS_DIR = path.join(PUBLIC_DIR, 'js');
 const SERVER_DIR = path.join(ROOT, 'server');
 
 function read(filePath) {
@@ -35,7 +33,6 @@ const controls = [
   { id: 'backToLoginLink', apiMethod: null, kind: 'local' },
   { id: 'doResetBtn', apiMethod: 'resetPassword', kind: 'db' },
   { id: 'doRegisterBtn', apiMethod: 'register', kind: 'db' },
-  { id: 'msgBtn', apiMethod: 'getMessages', kind: 'db' },
   { id: 'notifBell', apiMethod: 'getNotifications', kind: 'db' },
   { id: 'logoutBtn', apiMethod: 'logout', kind: 'no_db_handler' },
   { id: 'notifMarkAllRead', apiMethod: 'markAllNotificationsRead', kind: 'db' },
@@ -50,8 +47,6 @@ const controls = [
   { id: 'editSchoolBtn', apiMethod: null, kind: 'local' },
   { id: 'createEventBtn', apiMethod: 'createEvent', kind: 'db' },
   { id: 'loadMoreBtn', apiMethod: 'getDirectors', kind: 'db' },
-  { id: 'msgSendBtn', apiMethod: 'sendMessage', kind: 'db' },
-  { id: 'contactBtn', apiMethod: 'sendMessage', kind: 'db' },
   { id: 'closeCalDetail', apiMethod: null, kind: 'local' },
   { selector: '[data-action="reg"]', apiMethod: 'registerForEvent', kind: 'db' },
   { selector: '[data-action="del"]', apiMethod: 'deleteEvent', kind: 'db' },
@@ -332,7 +327,7 @@ function run() {
 
   for (const id of sourceButtonIds) {
     if (!trackedIds.has(id)) {
-      if (id !== 'closeCalDetail' && id !== 'contactBtn') {
+      if (id !== 'closeCalDetail') {
         issues.push(`Untracked button id in source: ${id}`);
       }
     }

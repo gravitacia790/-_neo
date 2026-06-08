@@ -13,7 +13,7 @@ function collectFormData() {
   });
   return {
     phone: document.getElementById('directorPhone').value.trim(),
-    telegram: document.getElementById('directorTelegram').value.trim(),
+    telegram: document.getElementById('directorMax').value.trim(),
     experience: document.getElementById('uniqueExperience').value.trim(),
     interests: document.getElementById('personalInterests').value.trim(),
     isMentor: document.getElementById('mentorCheckbox').checked,
@@ -33,12 +33,15 @@ function validateProfileForm() {
     markFieldInvalid(phone, 'Введите корректный номер телефона');
     valid = false;
   }
-  var telegram = document.getElementById('directorTelegram');
-  if (telegram && telegram.value.trim()) {
-    var tg = telegram.value.trim();
-    var validTg = /^@?[a-zA-Z0-9_]{5,32}$/.test(tg) || /^https:\/\/t\.me\/[a-zA-Z0-9_]{5,32}$/i.test(tg);
-    if (!validTg) {
-      markFieldInvalid(telegram, 'Укажите @username или ссылку https://t.me/username');
+  var max = document.getElementById('directorMax');
+  if (max && max.value.trim()) {
+    var maxValue = max.value.trim();
+    var validMax =
+      /^@?[a-zA-Z0-9_.-]{3,64}$/.test(maxValue) ||
+      /^https?:\/\/max\.ru\/(?:u\/)?[a-zA-Z0-9_.-]{3,160}\/?$/i.test(maxValue) ||
+      /^max\.ru\/(?:u\/)?[a-zA-Z0-9_.-]{3,160}\/?$/i.test(maxValue);
+    if (!validMax) {
+      markFieldInvalid(max, 'Укажите username или ссылку https://max.ru/username');
       valid = false;
     }
   }
@@ -114,7 +117,7 @@ function saveProfile() {
         err.data.details.forEach(function (issue) {
           if (!issue.path || !issue.path[0]) return;
           if (issue.path[0] === 'phone') markFieldInvalid(document.getElementById('directorPhone'), issue.message);
-          if (issue.path[0] === 'telegram') markFieldInvalid(document.getElementById('directorTelegram'), issue.message);
+          if (issue.path[0] === 'telegram') markFieldInvalid(document.getElementById('directorMax'), issue.message);
           if (issue.path[0] === 'experience') markFieldInvalid(document.getElementById('uniqueExperience'), issue.message);
           if (issue.path[0] === 'interests') markFieldInvalid(document.getElementById('personalInterests'), issue.message);
         });

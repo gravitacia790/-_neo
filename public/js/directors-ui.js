@@ -51,7 +51,3 @@ function renderDirectorsState(container, type, text) {
   container.innerHTML = '<div class="list-state' + (type === 'error' ? ' is-error' : '') + '">' + escapeHtml(text) + '</div>';
 }
 
-function renderMentorCard(m) {
-  var ratingHtml = m.rating ? '<span class="rating-badge" style="margin-left:8px;">⭐ ' + m.rating.totalScore + '</span>' : '';
-  return '<div class="mentor-card"><div><strong>' + escapeHtml(m.name) + '</strong><div>' + escapeHtml(m.school) + '</div><div>' + escapeHtml(m.useful || 'Не указано') + '</div></div><div>' + ratingHtml + '<span class="mentor-pill">Наставник</span></div></div>';
-}

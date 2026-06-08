@@ -259,6 +259,11 @@ function showRegisterModal() {
 function logout() {
   WS.disconnect();
   NOTIF.closeDropdown();
+  var directorsState = typeof APPSTATE !== 'undefined' ? APPSTATE.getDirectors() : null;
+  if (directorsState && directorsState.searchTimer) {
+    clearTimeout(directorsState.searchTimer);
+    APPSTATE.setDirectorsSearchTimer(null);
+  }
   API.logout()
     .catch(function () {})
     .then(function () {

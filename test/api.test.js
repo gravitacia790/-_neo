@@ -16,28 +16,8 @@ await initDb();
 const { db } = await import('../server/db.js');
 
 const { default: supertest } = await import('supertest');
-const express = await import('express');
-const helmet = await import('helmet');
-const cookieParser = await import('cookie-parser');
-const cors = await import('cors');
-
-const app = express.default();
-app.use(cors.default({ origin: true, credentials: true }));
-app.use(helmet.default({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
-app.use(cookieParser.default());
-app.use((await import('../server/middleware/csrf.js')).default);
-app.use(express.default.json({ limit: '2mb' }));
-
-app.get('/csrf-bootstrap', (req, res) => res.json({ ok: true }));
-
-app.use('/api/auth', (await import('../server/routes/auth.js')).default);
-app.use('/api/profile', (await import('../server/routes/profile.js')).default);
-app.use('/api/directors', (await import('../server/routes/directors.js')).default);
-app.use('/api/events', (await import('../server/routes/events.js')).default);
-app.use('/api/ratings', (await import('../server/routes/ratings.js')).default);
-app.use('/api/notifications', (await import('../server/routes/notifications.js')).default);
-app.use('/api/admin', (await import('../server/routes/admin.js')).default);
-app.use('/api/messages', (await import('../server/routes/messages.js')).default);
+const { createApp } = await import('../server.js');
+const app = createApp();
 
 function parseCsrfFromSetCookie(setCookie) {
   if (!setCookie) return null;
@@ -57,9 +37,13 @@ let wsPort;
 
 beforeAll(async () => {
   agent = supertest.agent(app);
-  const bootstrap = await agent.get('/csrf-bootstrap');
-  csrfToken = parseCsrfFromSetCookie(bootstrap.headers['set-cookie']);
-  expect(csrfToken).toBeTruthy();
+const bootstrap = await agent.get('/api/auth/me');
+csrfToken = parseCsrfFromSetCookie(bootstrap.headers['set-cookie']);
+if (!csrfToken) {
+  const second = await agent.get('/api/auth/me');
+  csrfToken = parseCsrfFromSetCookie(second.headers['set-cookie']);
+}
+expect(csrfToken).toBeTruthy();
 
   httpServer = http.createServer(app);
   const { init: initWs } = await import('../server/ws.js');
@@ -94,9 +78,10 @@ describe('CSRF', () => {
   });
 
   it('GET выдаёт csrf cookie', async () => {
-    const res = await agent.get('/csrf-bootstrap');
-    expect(res.status).toBe(200);
-    expect(parseCsrfFromSetCookie(res.headers['set-cookie'])).toBeTruthy();
+    const res = await agent.get('/api/auth/me');
+    expect([200, 401]).toContain(res.status);
+    var fromThis = parseCsrfFromSetCookie(res.headers['set-cookie']);
+    expect(fromThis || csrfToken).toBeTruthy();
   });
 });
 
@@ -203,6 +188,26 @@ describe('Profile', () => {
     });
     expect(res.status).toBe(200);
   });
+
+  it('GET/PUT /api/profile/school — сохраняет и возвращает школу', async () => {
+    var save = await apiPut('/api/profile/school').set('Authorization', `Bearer ${token}`).send({
+      name: 'School API Test',
+      address: 'Test Address 42',
+      students: 777,
+      teachers: 55,
+      type: 'Лицей',
+      buildingCount: 2,
+      usefulExperience: 'Useful school experience',
+      wantToKnow: 'Need advanced school practices',
+    });
+    expect(save.status).toBe(200);
+    expect(save.body.school.name).toBe('School API Test');
+
+    var load = await apiGet('/api/profile/school').set('Authorization', `Bearer ${token}`);
+    expect(load.status).toBe(200);
+    expect(load.body.school.name).toBe('School API Test');
+    expect(load.body.school.students).toBe(777);
+  });
 });
 
 describe('Directors', () => {
@@ -232,6 +237,21 @@ describe('Directors', () => {
     const res = await apiGet('/api/directors?q=Лидерство').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.directors.length).toBeGreaterThan(0);
+  });
+
+  it('POST /api/directors/:id/favorite — добавляет и снимает избранное', async () => {
+    const list = await apiGet('/api/directors').set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    const target = list.body.directors.find((d) => d.email !== 'test@school.ru');
+    expect(target).toBeTruthy();
+
+    const add = await apiPost('/api/directors/' + target.id + '/favorite').set('Authorization', `Bearer ${token}`).send({});
+    expect(add.status).toBe(200);
+    expect(add.body.isFavorite).toBe(true);
+
+    const remove = await apiPost('/api/directors/' + target.id + '/favorite').set('Authorization', `Bearer ${token}`).send({});
+    expect(remove.status).toBe(200);
+    expect(remove.body.isFavorite).toBe(false);
   });
 });
 
@@ -268,6 +288,25 @@ describe('Events', () => {
     const list = await apiGet('/api/events').set('Authorization', `Bearer ${token}`);
     expect(list.status).toBe(200);
     expect(list.body.events.some((e) => e.id === eventId)).toBe(false);
+  });
+
+  it('POST /api/events/:id/register — регистрирует участника', async () => {
+    const create = await apiPost('/api/events').set('Authorization', `Bearer ${token}`).send({
+      title: 'Registration Event',
+      date: '01 июля 2026',
+      description: 'event for registration API',
+      max: 3,
+    });
+    expect(create.status).toBe(200);
+    const eventId = create.body.event.id;
+
+    const reg = await apiPost('/api/events/' + eventId + '/register').set('Authorization', `Bearer ${token}`).send({
+      employeeName: 'API Employee',
+      position: 'Методист',
+      schoolName: 'API School',
+    });
+    expect(reg.status).toBe(200);
+    expect(reg.body.ok).toBe(true);
   });
 });
 

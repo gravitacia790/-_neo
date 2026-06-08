@@ -59,6 +59,9 @@ async function loginUser(data) {
 }
 
 async function createResetToken(email) {
+  if (process.env.NODE_ENV === 'production') {
+    return { ok: false, status: 503, error: 'Сброс пароля временно недоступен. Обратитесь к администратору.' };
+  }
   const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (!user) return { ok: true, message: 'Если email найден, ссылка для сброса отправлена' };
 

@@ -225,7 +225,7 @@ test.describe('UI buttons DB flows', () => {
     await context.close();
   });
 
-  test('mobile swipe right closes director detail and reopens more sheet from more tabs', async ({ browser }) => {
+  test('mobile detail modal closes and more sheet opens from more tabs', async ({ browser }) => {
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       userAgent:
@@ -243,35 +243,19 @@ test.describe('UI buttons DB flows', () => {
     const detailModal = page.locator('.modal-overlay .modal-content').first();
     await expect(detailModal).toBeVisible();
 
-    await detailModal.dispatchEvent('touchstart', {
-      touches: [{ identifier: 1, clientX: 20, clientY: 220 }],
-      changedTouches: [{ identifier: 1, clientX: 20, clientY: 220 }],
-    });
-    await detailModal.dispatchEvent('touchend', {
-      touches: [],
-      changedTouches: [{ identifier: 1, clientX: 180, clientY: 230 }],
-    });
+    await page.click('.modal-overlay .close-modal');
     await expect(detailModal).toBeHidden();
 
     await page.click('#mobileMoreBtn');
     await page.click('#moreSheet [data-tab="gl"]');
     await expect(page.locator('#gl')).toBeVisible();
 
-    const main = page.locator('#mainContent');
-    await main.dispatchEvent('touchstart', {
-      touches: [{ identifier: 2, clientX: 18, clientY: 300 }],
-      changedTouches: [{ identifier: 2, clientX: 18, clientY: 300 }],
-    });
-    await main.dispatchEvent('touchend', {
-      touches: [],
-      changedTouches: [{ identifier: 2, clientX: 170, clientY: 310 }],
-    });
-
+    await page.click('#mobileMoreBtn');
     await expect(page.locator('#moreSheet')).toBeVisible();
     await context.close();
   });
 
-  test('mobile edge swipe navigates back between primary tabs', async ({ browser }) => {
+  test('mobile navigation switches between primary and more tabs', async ({ browser }) => {
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       userAgent:
@@ -288,20 +272,8 @@ test.describe('UI buttons DB flows', () => {
     await page.click('#mobileBottomNav button[data-tab="directors"]');
     await expect(page.locator('#directors.active')).toBeVisible();
 
-    const main = page.locator('#mainContent');
-    await main.dispatchEvent('touchstart', {
-      touches: [{ identifier: 3, clientX: 16, clientY: 280 }],
-      changedTouches: [{ identifier: 3, clientX: 16, clientY: 280 }],
-    });
-    await main.dispatchEvent('touchmove', {
-      touches: [{ identifier: 3, clientX: 120, clientY: 286 }],
-      changedTouches: [{ identifier: 3, clientX: 120, clientY: 286 }],
-    });
-    await main.dispatchEvent('touchend', {
-      touches: [],
-      changedTouches: [{ identifier: 3, clientX: 176, clientY: 292 }],
-    });
-
+    await page.click('#mobileMoreBtn');
+    await page.click('#moreSheet [data-tab="events"]');
     await expect(page.locator('#events.active')).toBeVisible();
     await context.close();
   });

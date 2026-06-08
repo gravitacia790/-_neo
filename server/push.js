@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { db } = require('./db');
 
 let webPush = null;
@@ -35,7 +34,6 @@ function ensureWebPushConfigured() {
   if (!webPush) {
     try {
       // Lazy require so test/dev can run without push package configured.
-      // eslint-disable-next-line global-require
       webPush = require('web-push');
     } catch (_) {
       if (!missingDependencyLogged) {
@@ -70,15 +68,20 @@ async function saveSubscription(userId, subscription, userAgent) {
     return { ok: false, error: 'Некорректная push-подписка' };
   }
 
+  var existing = await db.prepare('SELECT user_id FROM push_subscriptions WHERE endpoint = ?').get(endpoint);
+  if (existing && Number(existing.user_id) !== Number(userId)) {
+    return { ok: false, error: 'Эта push-подписка уже привязана к другому аккаунту' };
+  }
+
   await db.prepare(
     `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, last_seen_at)
      VALUES (?, ?, ?, ?, ?, NOW())
      ON CONFLICT (endpoint) DO UPDATE SET
-       user_id = EXCLUDED.user_id,
        p256dh = EXCLUDED.p256dh,
        auth = EXCLUDED.auth,
        user_agent = EXCLUDED.user_agent,
-       last_seen_at = NOW()`
+       last_seen_at = NOW()
+     WHERE push_subscriptions.user_id = EXCLUDED.user_id`
   ).run(userId, endpoint, p256dh, auth, userAgent || null);
 
   return { ok: true };

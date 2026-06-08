@@ -81,6 +81,7 @@ const profileSchema = z.object({
     .max(50)
     .optional()
     .default([]),
+  tags: z.array(z.string().max(120)).max(80).optional(),
   city: z.string().max(200).optional().default(''),
 });
 

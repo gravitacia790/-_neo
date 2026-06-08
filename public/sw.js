@@ -7,7 +7,7 @@ self.addEventListener('activate', function (event) {
 });
 
 self.addEventListener('push', function (event) {
-  var payload = {};
+  var payload;
   try {
     payload = event.data ? event.data.json() : {};
   } catch (_) {

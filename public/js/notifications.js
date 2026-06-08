@@ -74,7 +74,7 @@ var NOTIF = (function () {
     setUnread(getUnread() + 1);
     var title = data.title || '';
     var msg = data.message || '';
-    toast(title + (msg ? ': ' + msg : ''));
+    notify(title + (msg ? ': ' + msg : ''));
     if (data.type === 'event_created') {
       var eventsTab = document.querySelector('[data-tab="events"]');
       if (eventsTab && eventsTab.classList.contains('active')) renderEvents();

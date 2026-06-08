@@ -208,6 +208,15 @@ function loadCommunityStats() {
 }
 
 function showSplash() {
+  WS.disconnect();
+  if (typeof NOTIF !== 'undefined' && NOTIF && typeof NOTIF.closeDropdown === 'function') {
+    NOTIF.closeDropdown();
+  }
+  if (APP_RUNTIME.keyboardWatcherId) {
+    window.clearInterval(APP_RUNTIME.keyboardWatcherId);
+    APP_RUNTIME.keyboardWatcherId = null;
+    APP_RUNTIME.keyboardWatcherBound = false;
+  }
   setAppState('splash');
 }
 

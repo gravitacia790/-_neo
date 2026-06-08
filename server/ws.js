@@ -9,8 +9,7 @@ function extractToken(req) {
     const match = req.headers.cookie.match(/(?:^|;\s*)token=([^;]+)/);
     if (match) return decodeURIComponent(match[1]);
   }
-  const url = new URL(req.url, 'http://localhost');
-  return url.searchParams.get('token');
+  return null;
 }
 
 function init(server) {
@@ -82,11 +81,11 @@ async function insertNotification(userId, type, title, message) {
 
 async function broadcastAndInsert(eventType, title, message, excludeUserId) {
   const exclude = excludeUserId || 0;
-  broadcast({ type: eventType, title, message, timestamp: new Date().toISOString() });
   await db.prepare(
     `INSERT INTO notifications (user_id, type, title, message)
      SELECT id, ?, ?, ? FROM users WHERE id != ?`
   ).run(eventType, title, message, exclude);
+  broadcast({ type: eventType, title, message, timestamp: new Date().toISOString() });
 }
 
 module.exports = { init, broadcast, sendToUser, notify, notifyUser, insertNotification, broadcastAndInsert };
