@@ -48,14 +48,29 @@ function addStrength(name, val) {
   if (!list) return;
   var div = document.createElement('div');
   div.className = 'strength-item';
+  var scale = '';
+  for (var i = 1; i <= 10; i++) {
+    scale += '<span>' + i + '</span>';
+  }
   div.innerHTML =
     '<input type="text" class="dynamic-input strength-name" placeholder="Например: Стратегическое планирование..." value="' +
     escapeHtml(name) +
     '">' +
-    '<input type="range" class="strength-val" min="1" max="10" value="' +
+    '<div class="strength-slider-head"><span>Оценка</span><strong class="strength-current-value">' +
     escapeHtml(String(val)) +
-    '">';
+    '</strong></div>' +
+    '<input type="range" class="strength-val" min="1" max="10" step="0.5" value="' +
+    escapeHtml(String(val)) +
+    '">' +
+    '<div class="strength-scale" aria-hidden="true">' + scale + '</div>';
   list.appendChild(div);
+  var input = div.querySelector('.strength-val');
+  var value = div.querySelector('.strength-current-value');
+  if (input && value) {
+    input.addEventListener('input', function () {
+      value.textContent = input.value;
+    });
+  }
 }
 window.addStrength = addStrength;
 
