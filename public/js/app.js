@@ -38,17 +38,29 @@ function showMainApp() {
   setAppState('app');
   syncShellScrollState();
   SHELLDOM.syncAdminVisibility(isAdmin());
-  loadUserDataIntoForms().then(function () {
-    if (!APP_RUNTIME.tabsInitialized) {
-      initTabs();
-      APP_RUNTIME.tabsInitialized = true;
-    }
+  if (!APP_RUNTIME.tabsInitialized) {
+    initTabs();
+    APP_RUNTIME.tabsInitialized = true;
+  }
+  ensureActiveTabFallback();
+  loadUserDataIntoForms().catch(function () {
+    // Keep navigation usable even if profile data temporarily fails to load.
+  }).then(function () {
     WS.connect();
     NOTIF.init();
     if (typeof window.initPushClient === 'function') {
       window.initPushClient();
     }
   });
+}
+
+function ensureActiveTabFallback() {
+  var main = document.getElementById('mainContent');
+  var directors = document.getElementById('directors');
+  if (!main || !directors) return;
+  if (main.querySelector('.tab-content.active')) return;
+  directors.classList.add('active');
+  main.setAttribute('data-active-tab', 'directors');
 }
 
 function syncShellScrollState() {

@@ -1,29 +1,39 @@
 const { test, expect } = require('@playwright/test');
 
-const E2E_EMAIL = 'e2e-director@school.ru';
 const E2E_PASSWORD = 'e2e-pass-12345';
 const ADMIN_EMAIL = 'admin@test.ru';
 const ADMIN_PASSWORD = 'admin123';
+let e2eUserCounter = 0;
+
+function nextE2eEmail() {
+  e2eUserCounter += 1;
+  return 'e2e-director-' + Date.now() + '-' + e2eUserCounter + '@school.ru';
+}
 
 async function registerOrLogin(page) {
+  const email = nextE2eEmail();
   await page.goto('/');
   await expect(page.locator('#loginBtn')).toBeVisible();
 
   await page.click('#registerBtn');
   await page.fill('#regName', 'E2E Director');
-  await page.fill('#regEmail', E2E_EMAIL);
+  await page.fill('#regEmail', email);
   await page.fill('#regPhone', '+7 (999) 000-00-01');
   await page.fill('#regPassword', E2E_PASSWORD);
   await page.click('#doRegisterBtn');
 
-  const loginModal = page.locator('#doLoginBtn');
-  if (await loginModal.isVisible().catch(() => false)) {
-    await page.fill('#loginEmail', E2E_EMAIL);
+  const appVisible = await page.locator('#mainContent').waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false);
+  if (!appVisible) {
+    await page.click('.modal-overlay .close-modal');
+    await page.click('#loginBtn');
+    await expect(page.locator('#doLoginBtn')).toBeVisible();
+    await page.fill('#loginEmail', email);
     await page.fill('#loginPassword', E2E_PASSWORD);
     await page.click('#doLoginBtn');
   }
 
   await expect(page.locator('#mainContent')).toBeVisible();
+  await expect(page.locator('#directors.active')).toBeVisible();
   await expect(page.locator('#logoutBtn')).toBeVisible();
 }
 
@@ -54,27 +64,14 @@ test.describe('UI buttons DB flows', () => {
     await expect(page.locator('#loginBtn')).toBeVisible();
     await expect(page.locator('#registerBtn')).toBeVisible();
 
-    await page.click('#loginBtn');
-    await expect(page.locator('#doLoginBtn')).toBeVisible();
-    await page.fill('#loginEmail', E2E_EMAIL);
-    await page.fill('#loginPassword', E2E_PASSWORD);
-    await page.click('#doLoginBtn');
-
-    if (await page.locator('#doRegisterBtn').isVisible().catch(() => false)) {
-      await page.fill('#regName', 'E2E Director');
-      await page.fill('#regEmail', E2E_EMAIL);
-      await page.fill('#regPhone', '+7 (999) 000-00-01');
-      await page.fill('#regPassword', E2E_PASSWORD);
-      await page.click('#doRegisterBtn');
-    }
-
+    await registerOrLogin(page);
     await expect(page.locator('#mainContent')).toBeVisible();
 
     await page.click('#logoutBtn');
     await expect(page.locator('#splashScreen')).toBeVisible();
   });
 
-  test('messages and notifications buttons open DB-backed lists', async ({ page }) => {
+  test('notifications button opens DB-backed list', async ({ page }) => {
     await registerOrLogin(page);
 
     const notifBadge = page.locator('#notifBadge');
@@ -85,18 +82,12 @@ test.describe('UI buttons DB flows', () => {
     await page.click('#notifMarkAllRead');
     await expect(page.locator('#notifDropdown')).toBeVisible();
     await expect(notifBadge).toBeHidden();
-
-    const msgBadge = page.locator('#msgBadge');
-    await page.click('#msgBtn');
-    await expect(page.locator('#msgDropdown')).toBeVisible();
-    await expect(page.locator('#msgList')).toBeVisible();
-    await expect(msgBadge).toBeHidden();
   });
 
   test('directors and events action buttons keep backend connectivity', async ({ page }) => {
     await registerOrLogin(page);
 
-    await page.click('button[data-tab="directors"]');
+    await page.click('#topNav button[data-tab="directors"]');
     await expect(page.locator('#directorsList')).toBeVisible();
 
     const favoriteBtn = page.locator('[data-action="favorite"]').first();
@@ -105,37 +96,41 @@ test.describe('UI buttons DB flows', () => {
 
     const contactBtn = page.locator('[data-action="contact"]').first();
     await contactBtn.click();
-    await expect(page.locator('#msgSendBtn')).toBeVisible();
-    await page.fill('#msgText', 'E2E ping');
-    await page.click('#msgSendBtn');
+    await expect(page.locator('#contactActionsModal')).toBeVisible();
+    await expect(page.locator('#contactActionsModal [data-contact-action="phone"]')).toBeVisible();
+    await page.click('.modal-overlay .close-modal');
 
-    await page.click('button[data-tab="events"]');
+    await page.click('#moreNavBtn');
+    await page.click('#moreRow button[data-tab="events"]');
     await expect(page.locator('#eventsList')).toBeVisible();
     await page.fill('#eventTitle', 'E2E Event');
     await page.fill('#eventDate', '30 июня 2026');
-    await page.fill('#eventDescription', 'E2E auto event');
+    await page.fill('#eventDesc', 'E2E auto event');
     await page.fill('#eventMax', '20');
     await page.click('#createEventBtn');
     await expect(page.locator('#eventsList')).toContainText('E2E Event');
 
     await page.reload();
     await expect(page.locator('#mainContent')).toBeVisible();
-    await page.click('button[data-tab="events"]');
+    await page.click('#moreNavBtn');
+    await page.click('#moreRow button[data-tab="events"]');
     await expect(page.locator('#eventsList')).toContainText('E2E Event');
   });
 
   test('profile and school save buttons persist through DB-backed APIs', async ({ page }) => {
     await registerOrLogin(page);
 
-    await page.click('button[data-tab="profile"]');
-    await expect(page.locator('#saveProfileBtn')).toBeVisible();
+    await page.click('#moreNavBtn');
+    await page.click('#moreRow button[data-tab="profile"]');
+    await expect(page.locator('#profile.active #saveProfileBtn')).toBeVisible();
     await page.fill('#directorPhone', '+7 (999) 111-22-33');
     await page.fill('#uniqueExperience', 'E2E уникальный опыт');
     await page.fill('#personalInterests', 'E2E интересы');
     await page.click('#saveProfileBtn');
-    await expect(page.locator('#profile .form-status')).toContainText('Профиль сохранён');
+    await expect(page.locator('#profile .form-status-box')).toContainText('Профиль сохранён');
 
-    await page.click('button[data-tab="school"]');
+    await page.click('#moreNavBtn');
+    await page.click('#moreRow button[data-tab="school"]');
     await expect(page.locator('#doSaveSchool')).toBeVisible();
     const editBtn = page.locator('#editSchoolBtn');
     if (await editBtn.isVisible().catch(() => false)) {
@@ -146,11 +141,12 @@ test.describe('UI buttons DB flows', () => {
     await page.fill('#usefulExperience', 'Помогаем с управлением');
     await page.fill('#wantToKnow', 'Хотим изучить новые подходы');
     await page.click('#doSaveSchool');
-    await expect(page.locator('#school .form-status')).toContainText('Информация о школе сохранена');
+    await expect(page.locator('#school .form-status-box')).toContainText('Информация о школе сохранена');
 
     await page.reload();
     await expect(page.locator('#mainContent')).toBeVisible();
-    await page.click('button[data-tab="school"]');
+    await page.click('#moreNavBtn');
+    await page.click('#moreRow button[data-tab="school"]');
     await expect(page.locator('#schoolView')).toContainText('E2E School');
   });
 
@@ -240,7 +236,7 @@ test.describe('UI buttons DB flows', () => {
     const page = await context.newPage();
     await registerOrLogin(page);
 
-    await page.click('button[data-tab="directors"]');
+    await page.click('#mobileBottomNav button[data-tab="directors"]');
     const detailBtn = page.locator('[data-action="detail"]').first();
     await expect(detailBtn).toBeVisible();
     await detailBtn.click();
@@ -286,9 +282,10 @@ test.describe('UI buttons DB flows', () => {
     const page = await context.newPage();
     await registerOrLogin(page);
 
-    await page.click('button[data-tab="events"]');
+    await page.click('#mobileMoreBtn');
+    await page.click('#moreSheet [data-tab="events"]');
     await expect(page.locator('#events.active')).toBeVisible();
-    await page.click('button[data-tab="directors"]');
+    await page.click('#mobileBottomNav button[data-tab="directors"]');
     await expect(page.locator('#directors.active')).toBeVisible();
 
     const main = page.locator('#mainContent');

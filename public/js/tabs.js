@@ -1,8 +1,8 @@
 function initTabs() {
   var scrollMemory = {};
   var allTabs = ['profile', 'school', 'events', 'directors', 'mentors', 'expert', 'gl', 'internship', 'calendar'];
-  var primaryTabs = ['profile', 'school', 'events', 'directors', 'mentors'];
-  var moreTabs = ['expert', 'gl', 'internship', 'calendar'];
+  var primaryTabs = ['directors', 'gl', 'calendar'];
+  var moreTabs = ['profile', 'school', 'events', 'expert', 'internship'];
   if (isAdmin()) { allTabs.push('admin'); moreTabs.push('admin'); var adminBtn = document.querySelector('.admin-only'); if (adminBtn) adminBtn.style.display = ''; }
 
   var navBtns = document.querySelectorAll('#topNav button');
@@ -18,7 +18,7 @@ function initTabs() {
   var sheetTouchStartY = 0;
   var sheetTouchCurrentY = 0;
   var sheetDragging = false;
-  var activeTabId = 'profile';
+  var activeTabId = 'directors';
   var navHistory = [];
   var swipeTrack = null;
   var swipeSettleTimer = null;
@@ -323,7 +323,7 @@ function initTabs() {
   });
 
   bindMobileSwipeBack();
-  switchTab('profile', { trackHistory: false });
+  switchTab('directors', { trackHistory: false });
 }
 
 function initPWA() {
