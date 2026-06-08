@@ -1,8 +1,8 @@
 function initTabs() {
   var scrollMemory = {};
   var allTabs = ['profile', 'school', 'events', 'directors', 'expert', 'gl', 'internship', 'calendar'];
-  var primaryTabs = ['directors', 'gl', 'calendar'];
-  var moreTabs = ['profile', 'school', 'events', 'expert', 'internship'];
+  var primaryTabs = ['directors', 'expert', 'gl', 'calendar'];
+  var moreTabs = ['profile', 'school', 'events', 'internship'];
   if (isAdmin()) { allTabs.push('admin'); moreTabs.push('admin'); var adminBtn = document.querySelector('.admin-only'); if (adminBtn) adminBtn.style.display = ''; }
 
   var navBtns = document.querySelectorAll('#topNav button');
@@ -226,6 +226,7 @@ function initTabs() {
 
     if (tabId === 'directors') renderDirectors();
     if (tabId === 'events') renderEvents();
+    if (tabId === 'expert') renderExpertView();
     if (tabId === 'profile') updateProfileRatingDisplay();
     if (tabId === 'gl') renderGL();
     if (tabId === 'internship') renderInternship();

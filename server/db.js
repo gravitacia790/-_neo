@@ -108,6 +108,9 @@ async function ensureAdmin() {
 
 async function seedDemoDirectors() {
   if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO !== 'true') return;
+  if (process.env.RESTORE_DEMO_DIRECTORS === 'true') {
+    await db.prepare("DELETE FROM users WHERE role = 'director'").run();
+  }
   const countRow = await db.prepare('SELECT COUNT(*) AS c FROM users WHERE role = ?').get('director');
   if (Number(countRow.c) > 0) return;
 

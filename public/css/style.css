@@ -2075,15 +2075,9 @@ body.nav-sheet-open {
   .nav-row-primary {
     padding-bottom: 10px;
   }
-  .nav-row-primary button[data-tab='directors'] {
-    display: none;
-  }
-  .nav-row-primary .nav-mentors {
-    display: none;
-  }
   .nav-row-primary button {
-    min-width: 72px;
-    flex: 1 1 20%;
+    min-width: 0;
+    flex: 1 1 0;
   }
   .nav-sheet__subtitle {
     max-width: none;
