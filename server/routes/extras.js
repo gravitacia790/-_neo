@@ -89,17 +89,19 @@ router.get(
     const items = await Promise.all(CATALOG[cat].map(async (item) => {
       const regs = await db
         .prepare(
-          'SELECT employee_name, position, school_name, phone, city, registered_at FROM extra_registrations WHERE category = ? AND event_id = ? ORDER BY registered_at'
+          'SELECT id, employee_name, position, school_name, phone, city, registered_by, registered_at FROM extra_registrations WHERE category = ? AND event_id = ? ORDER BY registered_at'
         )
         .all(cat, item.id);
       return {
         ...item,
         registrations: regs.map((r) => ({
+          id: r.id,
           employeeName: r.employee_name,
           position: r.position,
           schoolName: r.school_name,
           phone: r.phone || '',
           city: r.city || '',
+          registeredBy: r.registered_by,
           registeredAt: r.registered_at,
         })),
       };
@@ -149,6 +151,29 @@ router.post(
         tag: `${eventType}:${cat}:${item.id}`,
       }
     );
+    res.json({ ok: true });
+  })
+);
+
+router.delete(
+  '/:category/:eventId/registrations/:registrationId',
+  authRequired,
+  safe('extras')(async (req, res) => {
+    const cat = req.params.category;
+    if (!CATALOG[cat]) return res.status(404).json({ error: 'Категория не найдена' });
+    const item = CATALOG[cat].find((e) => e.id === req.params.eventId);
+    if (!item) return res.status(404).json({ error: 'Событие не найдено' });
+    const registrationId = Number(req.params.registrationId);
+    if (!Number.isInteger(registrationId) || registrationId <= 0) return res.status(400).json({ error: 'Некорректный ID регистрации' });
+    const row = await db
+      .prepare('SELECT id, employee_name, registered_by FROM extra_registrations WHERE id = ? AND category = ? AND event_id = ?')
+      .get(registrationId, cat, item.id);
+    if (!row) return res.status(404).json({ error: 'Регистрация не найдена' });
+    if (req.user.role !== 'admin' && row.registered_by !== req.user.id) {
+      return res.status(403).json({ error: 'Недостаточно прав для отмены регистрации' });
+    }
+    await db.prepare('DELETE FROM extra_registrations WHERE id = ?').run(row.id);
+    await addActivity(req.user.id, 'cancel_participation', `Отменил(а) регистрацию ${row.employee_name} на "${item.title}" (${cat})`, 0);
     res.json({ ok: true });
   })
 );

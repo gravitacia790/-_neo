@@ -9,6 +9,9 @@ var APPSTATE = (function () {
       segment: 'all',
       favoritesSort: 'recent',
     },
+    events: {
+      cache: [],
+    },
   };
 
   function getDirectors() {
@@ -54,6 +57,14 @@ var APPSTATE = (function () {
     state.directors.searchTimer = timerId || null;
   }
 
+  function getEvents() {
+    return state.events;
+  }
+
+  function setEventsCache(items) {
+    state.events.cache = Array.isArray(items) ? items : [];
+  }
+
   return {
     getDirectors: getDirectors,
     setDirectorsCache: setDirectorsCache,
@@ -65,5 +76,7 @@ var APPSTATE = (function () {
     setDirectorsSegment: setDirectorsSegment,
     setDirectorsFavoritesSort: setDirectorsFavoritesSort,
     setDirectorsSearchTimer: setDirectorsSearchTimer,
+    getEvents: getEvents,
+    setEventsCache: setEventsCache,
   };
 })();

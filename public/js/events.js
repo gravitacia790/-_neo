@@ -8,6 +8,7 @@ function renderEvents() {
   }, { attempts: 2, delayMs: 350, shouldRetry: isRetriableApiError })
     .then(function (resp) {
       var events = resp.events;
+      APPSTATE.setEventsCache(events);
       if (!events.length) {
         renderEventsState(container, 'empty', 'Нет мероприятий. Создайте первое!');
         return;

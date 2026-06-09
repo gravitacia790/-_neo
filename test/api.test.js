@@ -312,6 +312,64 @@ describe('Events', () => {
     });
     expect(reg.status).toBe(200);
     expect(reg.body.ok).toBe(true);
+
+    const list = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${token}`);
+    const event = list.body.events.find((e) => e.id === eventId);
+    const registration = event.registrations.find((r) => r.employeeName === 'API Employee');
+    expect(registration.id).toBeTruthy();
+
+    const cancel = await apiDelete('/api/events/' + eventId + '/registrations/' + registration.id).set('Authorization', `Bearer ${token}`);
+    expect(cancel.status).toBe(200);
+    expect(cancel.body.ok).toBe(true);
+  });
+
+  it('PUT /api/events/:id — редактирует и скрывает архивное мероприятие', async () => {
+    const create = await apiPost('/api/events').set('Authorization', `Bearer ${token}`).send({
+      title: 'Editable Event',
+      date: '10 августа 2026',
+      description: 'event to edit',
+      max: 8,
+    });
+    expect(create.status).toBe(200);
+    const eventId = create.body.event.id;
+
+    const update = await apiPut('/api/events/' + eventId).set('Authorization', `Bearer ${token}`).send({
+      title: 'Edited Archived Event',
+      date: '11 августа 2026',
+      description: 'edited and archived',
+      max: 12,
+      status: 'archived',
+    });
+    expect(update.status).toBe(200);
+    expect(update.body.event.status).toBe('archived');
+
+    const list = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.events.some((e) => e.id === eventId)).toBe(false);
+  });
+});
+
+describe('Extras', () => {
+  it('POST/DELETE /api/extras/:category/:eventId/register — регистрирует и отменяет участника', async () => {
+    const reg = await apiPost('/api/extras/gl/gl1/register').set('Authorization', `Bearer ${token}`).send({
+      employeeName: 'Extra Employee',
+      position: 'Директор',
+      schoolName: 'Extra School',
+      phone: '+7 999 000 00 00',
+      city: 'Химки',
+    });
+    expect(reg.status).toBe(200);
+    expect(reg.body.ok).toBe(true);
+
+    const list = await apiGet('/api/extras/gl').set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    const item = list.body.items.find((e) => e.id === 'gl1');
+    const registration = item.registrations.find((r) => r.employeeName === 'Extra Employee');
+    expect(registration.id).toBeTruthy();
+
+    const cancel = await apiDelete('/api/extras/gl/gl1/registrations/' + registration.id).set('Authorization', `Bearer ${token}`);
+    expect(cancel.status).toBe(200);
+    expect(cancel.body.ok).toBe(true);
   });
 });
 
@@ -447,6 +505,9 @@ describe('Admin', () => {
     expect(res.status).toBe(200);
     expect(typeof res.body.overview.directors).toBe('number');
     expect(typeof res.body.overview.events).toBe('number');
+    expect(typeof res.body.overview.registrationsLast7Days).toBe('number');
+    expect(res.body.overview.upcomingEvents).toBeInstanceOf(Array);
+    expect(res.body.overview.topEvents).toBeInstanceOf(Array);
   });
 
   it('POST /api/admin/materials — создаёт опубликованный материал', async () => {
@@ -463,14 +524,49 @@ describe('Admin', () => {
       description: 'Ссылка на материалы семинара',
       url: 'https://example.com/material',
       category: 'gl',
+      materialType: 'presentation',
       published: true,
     });
     expect(create.status).toBe(200);
     expect(create.body.material.title).toBe('Материал API');
+    expect(create.body.material.materialType).toBe('presentation');
 
     const publicList = await apiGet('/api/materials?category=gl').set('Authorization', `Bearer ${token}`);
     expect(publicList.status).toBe(200);
     expect(publicList.body.materials.some((m) => m.title === 'Материал API')).toBe(true);
+
+    const typedList = await apiGet('/api/materials?category=gl&type=presentation').set('Authorization', `Bearer ${token}`);
+    expect(typedList.status).toBe(200);
+    expect(typedList.body.materials.every((m) => m.materialType === 'presentation')).toBe(true);
+  });
+
+  it('GET /api/events — возвращает материалы, привязанные к мероприятию', async () => {
+    const adminToken = await loginAdmin();
+    const event = await apiPost('/api/events').set('Authorization', `Bearer ${token}`).send({
+      title: 'Event With Material',
+      date: '20 августа 2026',
+      description: 'event with linked material',
+      max: 10,
+    });
+    expect(event.status).toBe(200);
+    const eventId = event.body.event.id;
+
+    const material = await apiPost('/api/admin/materials').set('Authorization', `Bearer ${adminToken}`).send({
+      title: 'Материал события',
+      description: 'Материал внутри карточки события',
+      url: 'https://example.com/event-material',
+      category: 'calendar',
+      materialType: 'recording',
+      eventId: String(eventId),
+      published: true,
+    });
+    expect(material.status).toBe(200);
+
+    const list = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    const found = list.body.events.find((e) => e.id === eventId);
+    expect(found).toBeTruthy();
+    expect(found.materials.some((m) => m.title === 'Материал события' && m.materialType === 'recording')).toBe(true);
   });
 
   it('POST /api/admin/announcements — отправляет уведомления выбранной аудитории', async () => {
@@ -502,7 +598,9 @@ describe('Admin', () => {
     const history = await apiGet('/api/admin/announcements').set('Authorization', `Bearer ${adminToken}`);
     expect(history.status).toBe(200);
     expect(history.body.announcements).toBeInstanceOf(Array);
-    expect(history.body.announcements.some((a) => a.title === 'Важное объявление')).toBe(true);
+    const announcement = history.body.announcements.find((a) => a.title === 'Важное объявление');
+    expect(announcement).toBeTruthy();
+    expect(announcement.recipientCount).toBe(send.body.recipients);
   });
 });
 

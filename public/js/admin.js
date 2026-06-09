@@ -21,22 +21,18 @@ function renderAdminPanel() {
       var registrations = results[3].registrations || [];
       var materials = results[4].materials || [];
       var announcements = results[5].announcements || [];
+      var sections = getAdminSectionRegistry({
+        overview: overview,
+        users: users,
+        events: events,
+        registrations: registrations,
+        materials: materials,
+        announcements: announcements,
+      });
       var html =
         '<h2 class="tab-title">Админ-панель</h2>' +
-        '<div class="admin-tabs" id="adminTabs">' +
-        '<button class="admin-tab active" data-admin-section="overview">Обзор</button>' +
-        '<button class="admin-tab" data-admin-section="directors">Директора</button>' +
-        '<button class="admin-tab" data-admin-section="events">Мероприятия</button>' +
-        '<button class="admin-tab" data-admin-section="registrations">Регистрации</button>' +
-        '<button class="admin-tab" data-admin-section="materials">Материалы</button>' +
-        '<button class="admin-tab" data-admin-section="broadcasts">Рассылки</button>' +
-        '</div>' +
-        buildOverviewSection(overview) +
-        buildDirectorsSection(users) +
-        buildEventsSection(events) +
-        buildRegistrationsSection(registrations) +
-        buildMaterialsSection(materials, events) +
-        buildBroadcastsSection(events, announcements);
+        buildAdminTabs(sections) +
+        sections.map(function (section) { return section.render(); }).join('');
 
       container.innerHTML = html;
       bindAdminTabs(container);
@@ -47,11 +43,33 @@ function renderAdminPanel() {
     });
 }
 
+function getAdminSectionRegistry(data) {
+  return [
+    { id: 'overview', label: 'Обзор', render: function () { return buildOverviewSection(data.overview); } },
+    { id: 'directors', label: 'Директора', render: function () { return buildDirectorsSection(data.users); } },
+    { id: 'events', label: 'Мероприятия', render: function () { return buildEventsSection(data.events); } },
+    { id: 'registrations', label: 'Регистрации', render: function () { return buildRegistrationsSection(data.registrations); } },
+    { id: 'materials', label: 'Материалы', render: function () { return buildMaterialsSection(data.materials, data.events); } },
+    { id: 'broadcasts', label: 'Рассылки', render: function () { return buildBroadcastsSection(data.events, data.announcements); } },
+  ];
+}
+
+function buildAdminTabs(sections) {
+  return (
+    '<div class="admin-tabs" id="adminTabs">' +
+    sections.map(function (section, index) {
+      return '<button class="admin-tab' + (index === 0 ? ' active' : '') + '" data-admin-section="' + escapeAttr(section.id) + '">' + escapeHtml(section.label) + '</button>';
+    }).join('') +
+    '</div>'
+  );
+}
+
 function buildOverviewSection(overview) {
   var cards = [
     ['Директоров', overview.directors || 0],
     ['Мероприятий', overview.events || 0],
     ['Регистраций', overview.registrations || 0],
+    ['За 7 дней', overview.registrationsLast7Days || 0],
     ['Материалов', overview.materials || 0],
     ['Рассылок', overview.announcements || 0],
   ];
@@ -61,7 +79,28 @@ function buildOverviewSection(overview) {
     cards.map(function (card) {
       return '<div class="admin-metric"><span>' + escapeHtml(card[0]) + '</span><strong>' + escapeHtml(card[1]) + '</strong></div>';
     }).join('') +
-    '</div></section>'
+    '</div>' +
+    buildOverviewLists(overview) +
+    '</section>'
+  );
+}
+
+function buildOverviewLists(overview) {
+  var upcoming = overview.upcomingEvents || [];
+  var top = overview.topEvents || [];
+  return (
+    '<div class="admin-overview-lists">' +
+    '<div class="admin-list-card"><strong>Ближайшие опубликованные мероприятия</strong>' +
+    (upcoming.length ? '<ul class="admin-mini-list">' + upcoming.map(function (ev) {
+      return '<li><span>' + escapeHtml(ev.title) + '</span><small>' + escapeHtml(ev.date || 'Дата не указана') + '</small></li>';
+    }).join('') + '</ul>' : '<p>Пока нет опубликованных мероприятий. Опубликуйте событие в разделе «Мероприятия».</p>') +
+    '</div>' +
+    '<div class="admin-list-card"><strong>Топ мероприятий по регистрациям</strong>' +
+    (top.length ? '<ul class="admin-mini-list">' + top.map(function (ev) {
+      return '<li><span>' + escapeHtml(ev.title) + '</span><small>Регистраций: ' + escapeHtml(ev.registrationsCount || 0) + '</small></li>';
+    }).join('') + '</ul>' : '<p>Регистраций пока нет. После первых записей здесь появится рейтинг мероприятий.</p>') +
+    '</div>' +
+    '</div>'
   );
 }
 
@@ -70,6 +109,9 @@ function buildDirectorsSection(users) {
     '<section class="admin-section" data-admin-panel="directors"><h3 class="section-label">Рейтинг директоров</h3>' +
     '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
     '<th>Директор</th><th>Email</th><th>Рейтинг</th><th>Публичный</th><th>Активности</th></tr></thead><tbody>';
+  if (!users.length) {
+    return html + '<tr><td colspan="5" class="list-state">Директора пока не зарегистрированы.</td></tr></tbody></table></div></section>';
+  }
   users.forEach(function (u) {
     var lastActs =
       (u.lastActivities || [])
@@ -84,16 +126,30 @@ function buildDirectorsSection(users) {
 
 function buildEventsSection(events) {
   var html =
-    '<section class="admin-section" data-admin-panel="events"><h3 class="section-label">Опубликованные мероприятия</h3>' +
+    '<section class="admin-section" data-admin-panel="events"><h3 class="section-label">Управление мероприятиями</h3>' +
+    '<div class="admin-form-card">' +
+    '<input type="hidden" id="adminEventId">' +
+    '<div class="form-group"><label class="form-label">Название</label><input id="adminEventTitle" type="text"></div>' +
+    '<div class="form-group"><label class="form-label">Дата и время</label><input id="adminEventDate" type="text" placeholder="Например: 2026-06-20 14:00"></div>' +
+    '<div class="form-group"><label class="form-label">Описание</label><textarea id="adminEventDescription" rows="2"></textarea></div>' +
+    '<div class="form-group"><label class="form-label">Максимум участников</label><input id="adminEventMax" type="number" min="1"></div>' +
+    '<div class="form-group"><label class="form-label">Статус</label><select id="adminEventStatus"><option value="draft">Черновик</option><option value="published">Опубликовано</option><option value="archived">Архив</option></select></div>' +
+    '<button class="save-btn" id="saveAdminEventBtn">Сохранить мероприятие</button><button class="ghost-btn" id="resetAdminEventBtn" style="margin-top:8px;">Очистить</button></div>' +
     '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-    '<th>Название</th><th>Дата</th><th>Организатор</th><th>Регистраций</th><th>Максимум</th><th>Действия</th></tr></thead><tbody>';
+    '<th>Название</th><th>Дата</th><th>Статус</th><th>Организатор</th><th>Регистраций</th><th>Максимум</th><th>Действия</th></tr></thead><tbody>';
+  if (!events.length) {
+    html += '<tr><td colspan="7" class="list-state">Мероприятий пока нет. Создайте первое событие в разделе «Мероприятия».</td></tr>';
+  }
   events.forEach(function (ev) {
     html +=
       '<tr><td>' + escapeHtml(ev.title) + '</td><td>' + escapeHtml(ev.date || '—') + '</td><td>' +
+      escapeHtml(getEventStatusLabel(ev.status)) + '</td><td>' +
       escapeHtml(ev.creator || '—') + (ev.creatorEmail ? '<br><small>' + escapeHtml(ev.creatorEmail) + '</small>' : '') +
       '</td><td>' + escapeHtml(ev.registrationsCount) + '</td><td>' + escapeHtml(ev.max || '—') + '</td><td>' +
+      '<button class="ghost-btn edit-event-btn" data-id="' + escapeAttr(ev.id) + '">Редактировать</button> ' +
       '<button class="ghost-btn view-participants-btn" data-event-key="event:' + escapeAttr(ev.id) + '">Участники</button> ' +
-      '<button class="ghost-btn delete-event-btn" data-id="' + escapeAttr(ev.id) + '">Снять</button></td></tr>';
+      '<button class="ghost-btn export-event-participants-btn" data-event-key="event:' + escapeAttr(ev.id) + '">CSV участников</button> ' +
+      '<button class="ghost-btn archive-event-btn" data-id="' + escapeAttr(ev.id) + '">В архив</button></td></tr>';
   });
   return html + '</tbody></table></div></section>';
 }
@@ -114,10 +170,10 @@ function buildRegistrationsSection(registrations) {
     '<button class="ghost-btn" id="resetRegistrationFiltersBtn">Сбросить</button>' +
     '</div>' +
     '<div class="admin-export-row"><button class="save-btn" id="exportRegistrationsBtn">Выгрузить текущую выборку CSV</button><span id="registrationsFilterSummary"></span></div>';
-  if (!registrations.length) return html + '<div class="list-state">Регистраций пока нет</div></section>';
+  if (!registrations.length) return html + '<div class="list-state">Регистраций пока нет. Когда участники начнут записываться, здесь появится таблица и CSV-выгрузка.</div></section>';
   html +=
     '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-    '<th>Раздел</th><th>Мероприятие</th><th>Дата</th><th>Участник</th><th>Телефон</th><th>Школа</th><th>Город</th><th>Зарегистрировал</th>' +
+    '<th>Раздел</th><th>Мероприятие</th><th>Дата</th><th>Участник</th><th>Телефон</th><th>Школа</th><th>Город</th><th>Зарегистрировал</th><th>Действия</th>' +
     '</tr></thead><tbody id="adminRegistrationsBody"></tbody></table></div></section>';
   return html;
 }
@@ -126,6 +182,8 @@ function buildMaterialsSection(materials, events) {
   var eventOptions = '<option value="">Без привязки</option>' + events.map(function (ev) {
     return '<option value="' + escapeAttr(String(ev.id)) + '">' + escapeHtml(ev.title) + '</option>';
   }).join('');
+  var categoryOptions = uniqueSorted(materials.map(function (m) { return m.category; }));
+  var typeOptions = uniqueSorted(materials.map(function (m) { return m.materialType; }));
   var html =
     '<section class="admin-section" data-admin-panel="materials"><h3 class="section-label">Материалы семинаров</h3>' +
     '<div class="admin-form-card">' +
@@ -134,22 +192,36 @@ function buildMaterialsSection(materials, events) {
     '<div class="form-group"><label class="form-label">Описание</label><textarea id="materialDescription" rows="2"></textarea></div>' +
     '<div class="form-group"><label class="form-label">Ссылка</label><input id="materialUrl" type="url" placeholder="https://..."></div>' +
     '<div class="form-group"><label class="form-label">Категория</label><select id="materialCategory"><option value="gl">Гравитация лидерства</option><option value="internship">Стажировка</option><option value="calendar">Календарь</option><option value="general">Общее</option></select></div>' +
+    '<div class="form-group"><label class="form-label">Тип материала</label><select id="materialType"><option value="presentation">Презентация</option><option value="recording">Запись</option><option value="document">Документ</option><option value="link">Ссылка</option></select></div>' +
     '<div class="form-group"><label class="form-label">Мероприятие</label><select id="materialEventId">' + eventOptions + '</select></div>' +
     '<div class="checkbox-label"><input type="checkbox" id="materialPublished" checked><label for="materialPublished">Опубликовано</label></div>' +
     '<button class="save-btn" id="saveMaterialBtn">Сохранить материал</button><button class="ghost-btn" id="resetMaterialBtn" style="margin-top:8px;">Очистить</button></div>';
-  if (!materials.length) return html + '<div class="list-state">Материалов пока нет</div></section>';
-  html += '<div class="admin-card-list">';
+  if (!materials.length) return html + '<div class="list-state">Материалов пока нет. Добавьте ссылку на презентацию, запись, документ или полезный ресурс.</div></section>';
+  html +=
+    '<div class="admin-filter-row">' +
+    '<select id="materialTypeFilter"><option value="">Все типы</option>' + typeOptions.map(function (v) { return '<option value="' + escapeAttr(v) + '">' + escapeHtml(getMaterialTypeLabel(v)) + '</option>'; }).join('') + '</select>' +
+    '<select id="materialCategoryFilter"><option value="">Все категории</option>' + categoryOptions.map(function (v) { return '<option value="' + escapeAttr(v) + '">' + escapeHtml(getMaterialCategoryLabel(v)) + '</option>'; }).join('') + '</select>' +
+    '<select id="materialEventFilter"><option value="">Все мероприятия</option>' + eventOptions + '</select>' +
+    '<button class="ghost-btn" id="resetMaterialFiltersBtn">Сбросить</button>' +
+    '</div>' +
+    '<div class="admin-card-list" id="adminMaterialsList">';
   materials.forEach(function (m) {
-    html +=
-      '<div class="admin-list-card" data-material-id="' + escapeAttr(m.id) + '">' +
-      '<strong>' + escapeHtml(m.title) + '</strong><p>' + escapeHtml(m.description || 'Без описания') + '</p>' +
-      '<small>' + escapeHtml(m.category) + ' • ' + (m.published ? 'Опубликовано' : 'Скрыто') + '</small>' +
-      '<div><a href="' + escapeAttr(m.url) + '" target="_blank" rel="noopener">Открыть</a></div>' +
-      '<button class="ghost-btn edit-material-btn" data-id="' + escapeAttr(m.id) + '">Редактировать</button> ' +
-      '<button class="ghost-btn delete-material-btn" data-id="' + escapeAttr(m.id) + '">Удалить</button>' +
-      '</div>';
+    html += buildAdminMaterialCard(m);
   });
   return html + '</div></section>';
+}
+
+function buildAdminMaterialCard(m) {
+  return (
+    '<div class="admin-list-card" data-material-id="' + escapeAttr(m.id) + '" data-material-type="' + escapeAttr(m.materialType || 'link') + '" data-material-category="' + escapeAttr(m.category || 'general') + '" data-material-event="' + escapeAttr(m.eventId || '') + '">' +
+    '<span class="material-type-badge">' + escapeHtml(getMaterialTypeIcon(m.materialType)) + ' ' + escapeHtml(getMaterialTypeLabel(m.materialType)) + '</span>' +
+    '<strong>' + escapeHtml(m.title) + '</strong><p>' + escapeHtml(m.description || 'Без описания') + '</p>' +
+    '<small>' + escapeHtml(getMaterialCategoryLabel(m.category)) + ' • ' + (m.published ? 'Опубликовано' : 'Скрыто') + '</small>' +
+    '<div><a href="' + escapeAttr(m.url) + '" target="_blank" rel="noopener">Открыть</a></div>' +
+    '<button class="ghost-btn edit-material-btn" data-id="' + escapeAttr(m.id) + '">Редактировать</button> ' +
+    '<button class="ghost-btn delete-material-btn" data-id="' + escapeAttr(m.id) + '">Удалить</button>' +
+    '</div>'
+  );
 }
 
 function buildBroadcastsSection(events, announcements) {
@@ -181,6 +253,7 @@ function buildAnnouncementsHistory(announcements) {
       '<strong>' + escapeHtml(item.title) + '</strong>' +
       '<p>' + escapeHtml(item.message) + '</p>' +
       '<small>Аудитория: ' + escapeHtml(getAudienceLabel(item.audience)) +
+      ' • Получателей: ' + escapeHtml(item.recipientCount || 0) +
       (item.createdBy ? ' • Автор: ' + escapeHtml(item.createdBy) : '') +
       (item.sentAt ? ' • Отправлено: ' + escapeHtml(formatAdminDate(item.sentAt)) : '') +
       '</small></div>';
@@ -211,6 +284,33 @@ function getAudienceLabel(value) {
   return value || 'Не указано';
 }
 
+function getEventStatusLabel(value) {
+  if (value === 'draft') return 'Черновик';
+  if (value === 'archived') return 'Архив';
+  return 'Опубликовано';
+}
+
+function getMaterialTypeLabel(value) {
+  if (value === 'presentation') return 'Презентация';
+  if (value === 'recording') return 'Запись';
+  if (value === 'document') return 'Документ';
+  return 'Ссылка';
+}
+
+function getMaterialTypeIcon(value) {
+  if (value === 'presentation') return 'Презентация';
+  if (value === 'recording') return 'Запись';
+  if (value === 'document') return 'Документ';
+  return 'Ссылка';
+}
+
+function getMaterialCategoryLabel(value) {
+  if (value === 'gl') return 'Гравитация лидерства';
+  if (value === 'internship') return 'Стажировка';
+  if (value === 'calendar') return 'Календарь';
+  return 'Общее';
+}
+
 function formatAdminDate(value) {
   if (!value) return '';
   var date = new Date(value);
@@ -238,6 +338,7 @@ function getMaterialPayload() {
     description: document.getElementById('materialDescription').value.trim(),
     url: document.getElementById('materialUrl').value.trim(),
     category: document.getElementById('materialCategory').value,
+    materialType: document.getElementById('materialType').value,
     eventId: document.getElementById('materialEventId').value,
     published: document.getElementById('materialPublished').checked,
   };
@@ -249,8 +350,28 @@ function resetMaterialForm() {
   document.getElementById('materialDescription').value = '';
   document.getElementById('materialUrl').value = '';
   document.getElementById('materialCategory').value = 'gl';
+  document.getElementById('materialType').value = 'link';
   document.getElementById('materialEventId').value = '';
   document.getElementById('materialPublished').checked = true;
+}
+
+function getAdminEventPayload() {
+  return {
+    title: document.getElementById('adminEventTitle').value.trim(),
+    date: document.getElementById('adminEventDate').value.trim(),
+    description: document.getElementById('adminEventDescription').value.trim(),
+    max: document.getElementById('adminEventMax').value || 1,
+    status: document.getElementById('adminEventStatus').value,
+  };
+}
+
+function resetAdminEventForm() {
+  document.getElementById('adminEventId').value = '';
+  document.getElementById('adminEventTitle').value = '';
+  document.getElementById('adminEventDate').value = '';
+  document.getElementById('adminEventDescription').value = '';
+  document.getElementById('adminEventMax').value = '';
+  document.getElementById('adminEventStatus').value = 'published';
 }
 
 function bindAdminActions(container, data) {
@@ -267,6 +388,26 @@ function bindAdminActions(container, data) {
 
   var resetBtn = document.getElementById('resetMaterialBtn');
   if (resetBtn) resetBtn.addEventListener('click', resetMaterialForm);
+  bindMaterialFilters(container, data.materials);
+
+  var resetEventBtn = document.getElementById('resetAdminEventBtn');
+  if (resetEventBtn) resetEventBtn.addEventListener('click', resetAdminEventForm);
+
+  var saveEventBtn = document.getElementById('saveAdminEventBtn');
+  if (saveEventBtn) {
+    saveEventBtn.addEventListener('click', function () {
+      var id = document.getElementById('adminEventId').value;
+      if (!id) {
+        feedbackDialog({ title: 'Мероприятие не выбрано', message: 'Сначала нажмите «Редактировать» в строке нужного мероприятия.' });
+        return;
+      }
+      saveEventBtn.disabled = true;
+      API.updateEvent(id, getAdminEventPayload())
+        .then(function () { renderAdminPanel(); })
+        .catch(function (err) { feedbackDialog({ title: 'Ошибка', message: err.message }); })
+        .finally(function () { saveEventBtn.disabled = false; });
+    });
+  }
 
   var saveMaterialBtn = document.getElementById('saveMaterialBtn');
   if (saveMaterialBtn) {
@@ -277,7 +418,7 @@ function bindAdminActions(container, data) {
       saveMaterialBtn.disabled = true;
       request
         .then(function () { renderAdminPanel(); })
-        .catch(function (err) { alert(err.message); })
+        .catch(function (err) { feedbackDialog({ title: 'Ошибка', message: err.message }); })
         .finally(function () { saveMaterialBtn.disabled = false; });
     });
   }
@@ -291,6 +432,7 @@ function bindAdminActions(container, data) {
       document.getElementById('materialDescription').value = material.description || '';
       document.getElementById('materialUrl').value = material.url;
       document.getElementById('materialCategory').value = material.category || 'gl';
+      document.getElementById('materialType').value = material.materialType || 'link';
       document.getElementById('materialEventId').value = material.eventId || '';
       document.getElementById('materialPublished').checked = !!material.published;
       document.getElementById('materialTitle').focus();
@@ -299,19 +441,53 @@ function bindAdminActions(container, data) {
 
   container.querySelectorAll('.delete-material-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      if (!confirm('Удалить материал?')) return;
-      API.deleteAdminMaterial(btn.getAttribute('data-id'))
-        .then(function () { renderAdminPanel(); })
-        .catch(function (err) { alert(err.message); });
+      confirmDialog({
+        title: 'Удалить материал?',
+        message: 'Материал исчезнет из пользовательских разделов и админки.',
+        confirmText: 'Удалить',
+      }).then(function (confirmed) {
+        if (!confirmed) return;
+        API.deleteAdminMaterial(btn.getAttribute('data-id'))
+          .then(function () { renderAdminPanel(); })
+          .catch(function (err) { feedbackDialog({ title: 'Ошибка', message: err.message }); });
+      });
     });
   });
 
-  container.querySelectorAll('.delete-event-btn').forEach(function (btn) {
+  container.querySelectorAll('.edit-event-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      if (!confirm('Снять мероприятие с публикации?')) return;
-      API.deleteEvent(btn.getAttribute('data-id'))
-        .then(function () { renderAdminPanel(); })
-        .catch(function (err) { alert(err.message); });
+      var event = data.events.find(function (ev) { return String(ev.id) === String(btn.getAttribute('data-id')); });
+      if (!event) return;
+      document.getElementById('adminEventId').value = event.id;
+      document.getElementById('adminEventTitle').value = event.title;
+      document.getElementById('adminEventDate').value = event.date || '';
+      document.getElementById('adminEventDescription').value = event.description || '';
+      document.getElementById('adminEventMax').value = event.max || '';
+      document.getElementById('adminEventStatus').value = event.status || 'published';
+      document.getElementById('adminEventTitle').focus();
+    });
+  });
+
+  container.querySelectorAll('.archive-event-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var event = data.events.find(function (ev) { return String(ev.id) === String(btn.getAttribute('data-id')); });
+      if (!event) return;
+      confirmDialog({
+        title: 'Перенести мероприятие в архив?',
+        message: 'Архивное мероприятие будет скрыто от пользователей и календаря.',
+        confirmText: 'В архив',
+      }).then(function (confirmed) {
+        if (!confirmed) return;
+        API.updateEvent(event.id, {
+          title: event.title,
+          date: event.date,
+          description: event.description,
+          max: event.max || 1,
+          status: 'archived',
+        })
+          .then(function () { renderAdminPanel(); })
+          .catch(function (err) { feedbackDialog({ title: 'Ошибка', message: err.message }); });
+      });
     });
   });
 
@@ -328,6 +504,14 @@ function bindAdminActions(container, data) {
     });
   });
 
+  container.querySelectorAll('.export-event-participants-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-event-key') || '';
+      var rows = data.registrations.filter(function (r) { return r.sourceKey === key; });
+      exportRegistrationsCsv(rows, 'event-participants.csv');
+    });
+  });
+
   var sendAnnouncementBtn = document.getElementById('sendAnnouncementBtn');
   if (sendAnnouncementBtn) {
     sendAnnouncementBtn.addEventListener('click', function () {
@@ -339,10 +523,12 @@ function bindAdminActions(container, data) {
       sendAnnouncementBtn.disabled = true;
       API.sendAdminAnnouncement(payload)
         .then(function (result) {
-          alert('Рассылка отправлена. Получателей: ' + result.recipients);
-          renderAdminPanel();
+          return feedbackDialog({
+            title: 'Рассылка отправлена',
+            message: 'Получателей: ' + result.recipients,
+          }).then(renderAdminPanel);
         })
-        .catch(function (err) { alert(err.message); })
+        .catch(function (err) { feedbackDialog({ title: 'Ошибка', message: err.message }); })
         .finally(function () { sendAnnouncementBtn.disabled = false; });
     });
   }
@@ -388,6 +574,39 @@ function bindRegistrationFilters(container, registrations, onChange) {
   applyRegistrationFilters(registrations, onChange);
 }
 
+function bindMaterialFilters(container, materials) {
+  if (!materials || !materials.length) return;
+  var filterIds = ['materialTypeFilter', 'materialCategoryFilter', 'materialEventFilter'];
+  filterIds.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', applyMaterialFilters);
+  });
+  var resetBtn = document.getElementById('resetMaterialFiltersBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      filterIds.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      applyMaterialFilters();
+    });
+  }
+  applyMaterialFilters();
+}
+
+function applyMaterialFilters() {
+  var type = getInputValue('materialTypeFilter');
+  var category = getInputValue('materialCategoryFilter');
+  var eventId = getInputValue('materialEventFilter');
+  document.querySelectorAll('#adminMaterialsList .admin-list-card').forEach(function (card) {
+    var visible = true;
+    if (type && card.getAttribute('data-material-type') !== type) visible = false;
+    if (category && card.getAttribute('data-material-category') !== category) visible = false;
+    if (eventId && card.getAttribute('data-material-event') !== eventId) visible = false;
+    card.hidden = !visible;
+  });
+}
+
 function applyRegistrationFilters(registrations, onChange) {
   var source = getInputValue('registrationSourceFilter');
   var eventTitle = getInputValue('registrationEventFilter');
@@ -429,7 +648,7 @@ function renderRegistrationsTable(registrations) {
   var body = document.getElementById('adminRegistrationsBody');
   if (!body) return;
   if (!registrations.length) {
-    body.innerHTML = '<tr><td colspan="8" class="list-state">По текущим фильтрам регистраций нет</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="list-state">По текущим фильтрам регистраций нет. Измените фильтр или дождитесь новых заявок.</td></tr>';
     return;
   }
   body.innerHTML = registrations.map(function (r) {
@@ -438,9 +657,12 @@ function renderRegistrationsTable(registrations) {
       escapeHtml(r.eventDate || '—') + '</td><td>' + escapeHtml(r.participantName) + '</td><td>' +
       escapeHtml(r.phone || '—') + '</td><td>' + escapeHtml(r.schoolName || '—') + '</td><td>' +
       escapeHtml(r.city || '—') + '</td><td>' + escapeHtml(r.registeredBy || '—') +
-      (r.registeredByEmail ? '<br><small>' + escapeHtml(r.registeredByEmail) + '</small>' : '') + '</td></tr>'
+      (r.registeredByEmail ? '<br><small>' + escapeHtml(r.registeredByEmail) + '</small>' : '') + '</td><td>' +
+      '<button class="ghost-btn cancel-registration-btn" data-source-key="' + escapeAttr(r.sourceKey) + '" data-registration-id="' + escapeAttr(r.registrationId) + '" data-event-id="' + escapeAttr(r.eventId) + '" data-category="' + escapeAttr(r.category || '') + '">Отменить</button>' +
+      '</td></tr>'
     );
   }).join('');
+  bindCancelRegistrationButtons();
 }
 
 function updateRegistrationsSummary(visibleCount, totalCount) {
@@ -448,7 +670,31 @@ function updateRegistrationsSummary(visibleCount, totalCount) {
   if (el) el.textContent = 'Показано: ' + visibleCount + ' из ' + totalCount;
 }
 
-function exportRegistrationsCsv(registrations) {
+function bindCancelRegistrationButtons() {
+  document.querySelectorAll('.cancel-registration-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      confirmDialog({
+        title: 'Отменить регистрацию?',
+        message: 'Участник будет удалён из списка, а место снова станет доступно.',
+        confirmText: 'Отменить регистрацию',
+      }).then(function (confirmed) {
+        if (!confirmed) return;
+        var sourceKey = btn.getAttribute('data-source-key') || '';
+        var registrationId = btn.getAttribute('data-registration-id');
+        var eventId = btn.getAttribute('data-event-id');
+        var request = sourceKey.indexOf('extra:') === 0
+          ? API.cancelExtraRegistration(btn.getAttribute('data-category'), eventId, registrationId)
+          : API.cancelEventRegistration(eventId, registrationId);
+        request
+          .then(function () { return feedbackDialog({ title: 'Регистрация отменена', message: 'Список участников обновлён.' }); })
+          .then(renderAdminPanel)
+          .catch(function (err) { feedbackDialog({ title: 'Ошибка', message: err.message }); });
+      });
+    });
+  });
+}
+
+function exportRegistrationsCsv(registrations, filename) {
   var rows = [
     ['Раздел', 'Мероприятие', 'Дата мероприятия', 'ФИО', 'Телефон', 'Школа', 'Город', 'Зарегистрировал', 'Email', 'Дата регистрации'],
   ];
@@ -471,7 +717,7 @@ function exportRegistrationsCsv(registrations) {
   var url = URL.createObjectURL(blob);
   var link = document.createElement('a');
   link.href = url;
-  link.download = 'registrations.csv';
+  link.download = filename || 'registrations.csv';
   document.body.appendChild(link);
   link.click();
   link.remove();

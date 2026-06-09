@@ -1,4 +1,4 @@
-/* global SHELLDOM, OVERLAY */
+/* global SHELLDOM, OVERLAY, getUiErrorMessage */
 (function () {
   function renderCategory(category, containerId) {
     var container = document.getElementById(containerId);
@@ -17,6 +17,7 @@
           calendar: 'Календарь мероприятий',
         };
         var html = '<h2 class="tab-title">' + titleMap[category] + '</h2>';
+        var meId = (API.getUser() || {}).id;
         resp.items.forEach(function (event) {
           var regs = event.registrations || [];
           html +=
@@ -26,12 +27,16 @@
             '<p>' + escapeHtml(event.description) + '</p>' +
             '<button class="save-btn" style="margin-top:10px; padding:8px;" data-action="reg" data-id="' + escapeHtml(event.id) + '" data-title="' + escapeHtml(event.title) + '">📝 Зарегистрироваться</button>' +
             (regs.length ? '<div class="registration-list"><strong>Записавшиеся:</strong><ul>' + regs.map(function (r) {
-              return '<li><span>' + escapeHtml(r.employeeName) + '</span><small>' + escapeHtml(r.schoolName) + (r.city ? ' • ' + escapeHtml(r.city) : '') + (r.phone ? ' • ' + escapeHtml(r.phone) : '') + '</small></li>';
+              var canCancel = r.registeredBy === meId;
+              return '<li><span>' + escapeHtml(r.employeeName) + '</span><small>' + escapeHtml(r.schoolName) + (r.city ? ' • ' + escapeHtml(r.city) : '') + (r.phone ? ' • ' + escapeHtml(r.phone) : '') + '</small>' +
+                (canCancel ? '<button class="ghost-btn cancel-inline-btn" data-action="cancel-extra-reg" data-category="' + escapeAttr(category) + '" data-event-id="' + escapeAttr(event.id) + '" data-registration-id="' + escapeAttr(r.id) + '">Отменить</button>' : '') +
+                '</li>';
             }).join('') + '</ul></div>' : '') +
             '</div>';
         });
         html += buildMaterialsHtml(materials);
         container.innerHTML = html;
+        bindMaterialFiltersForContainer(container);
         container.querySelectorAll('[data-action="reg"]').forEach(function (btn) {
           btn.addEventListener('click', function () {
             var eventId = btn.getAttribute('data-id');
@@ -47,6 +52,25 @@
             });
           });
         });
+        container.querySelectorAll('[data-action="cancel-extra-reg"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            confirmDialog({
+              title: 'Отменить регистрацию?',
+              message: 'Участник будет удалён из списка.',
+              confirmText: 'Отменить',
+            }).then(function (confirmed) {
+              if (!confirmed) return;
+              API.cancelExtraRegistration(btn.getAttribute('data-category'), btn.getAttribute('data-event-id'), btn.getAttribute('data-registration-id'))
+                .then(function () {
+                  notify('Регистрация отменена');
+                  renderCategory(category, containerId);
+                })
+                .catch(function (err) {
+                  notify(getUiErrorMessage(err, 'Не удалось отменить регистрацию.'));
+                });
+            });
+          });
+        });
       })
       .catch(function (err) {
         container.innerHTML = '<div style="color:#ff8;">Ошибка: ' + escapeHtml(err.message) + '</div>';
@@ -55,10 +79,16 @@
 
   function buildMaterialsHtml(materials) {
     if (!materials || !materials.length) return '';
+    var types = Array.from(new Set(materials.map(function (m) { return m.materialType || 'link'; })));
     var html = '<div class="materials-section"><div class="section-label">Материалы семинаров</div>';
+    html += '<div class="material-filter-row"><button class="material-filter-btn active" data-material-filter="">Все</button>' +
+      types.map(function (type) {
+        return '<button class="material-filter-btn" data-material-filter="' + escapeAttr(type) + '">' + escapeHtml(getMaterialTypeLabel(type)) + '</button>';
+      }).join('') + '</div>';
     materials.forEach(function (m) {
       html +=
-        '<a class="material-card" href="' + escapeAttr(m.url) + '" target="_blank" rel="noopener">' +
+        '<a class="material-card" data-material-type="' + escapeAttr(m.materialType || 'link') + '" href="' + escapeAttr(m.url) + '" target="_blank" rel="noopener">' +
+        '<small class="material-type-badge">' + escapeHtml(getMaterialTypeLabel(m.materialType)) + '</small>' +
         '<strong>' + escapeHtml(m.title) + '</strong>' +
         (m.description ? '<span>' + escapeHtml(m.description) + '</span>' : '') +
         '</a>';
@@ -140,6 +170,7 @@
               creator: ev.creator,
               creatorSchool: ev.creatorSchool,
               max: ev.max,
+              materials: ev.materials || [],
               registrations: ev.registrations || [],
             });
           }
@@ -193,6 +224,7 @@
         }
         html += buildMaterialsHtml(materials);
         container.innerHTML = html;
+        bindMaterialFiltersForContainer(container);
         container.querySelectorAll('.cal-day.cal-has-events').forEach(function (el) {
           el.addEventListener('click', function () {
             var ek = el.getAttribute('data-key');
@@ -202,15 +234,22 @@
             evts.forEach(function (ev) {
               var count = (ev.registrations || []).length;
               var capacity = ev.max ? ' / ' + escapeHtml(ev.max) : '';
+              var isFull = ev.max && count >= Number(ev.max);
               var creator = ev.creator ? '<div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:6px;">👤 ' + escapeHtml(ev.creator) + (ev.creatorSchool ? ' • ' + escapeHtml(ev.creatorSchool) : '') + '</div>' : '';
+              var materials = ev.materials && ev.materials.length ? '<div class="event-materials" style="margin-top:10px;"><strong>Материалы:</strong>' + ev.materials.map(function (m) {
+                return '<a href="' + escapeAttr(m.url) + '" target="_blank" rel="noopener"><span class="material-type-badge">' + escapeHtml(getMaterialTypeLabel(m.materialType)) + '</span>' + escapeHtml(m.title) + (m.description ? '<small>' + escapeHtml(m.description) + '</small>' : '') + '</a>';
+              }).join('') + '</div>' : '';
               mh +=
                 '<div style="background:var(--cream);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid var(--border-faint);">' +
                 '<div style="font-weight:700;font-size:0.9rem;color:var(--charcoal);margin-bottom:4px;">' + escapeHtml(ev.title) + '</div>' +
                 '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">📅 ' + escapeHtml(ev.dateStr) + '</div>' +
                 creator +
                 '<div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.4;">' + escapeHtml(ev.desc) + '</div>' +
+                materials +
                 '<div style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">👥 Записалось: ' + count + capacity + '</div>' +
-                '<button class="save-btn cal-register-btn" style="margin-top:12px;padding:9px;" data-source="' + escapeAttr(ev.source) + '" data-id="' + escapeAttr(ev.id) + '" data-title="' + escapeAttr(ev.title) + '">📝 Зарегистрироваться</button>' +
+                (isFull
+                  ? '<button class="save-btn" disabled style="margin-top:12px;padding:9px;">Регистрация закрыта</button>'
+                  : '<button class="save-btn cal-register-btn" style="margin-top:12px;padding:9px;" data-source="' + escapeAttr(ev.source) + '" data-id="' + escapeAttr(ev.id) + '" data-title="' + escapeAttr(ev.title) + '">📝 Зарегистрироваться</button>') +
                 '</div>';
             });
             mh += '</div></div>';
@@ -256,4 +295,22 @@
         container.innerHTML = '<div style="color:#ff8;">Ошибка: ' + escapeHtml(err.message) + '</div>';
       });
   };
+
+  function bindMaterialFiltersForContainer(container) {
+    container.querySelectorAll('.material-filter-row').forEach(function (row) {
+      row.querySelectorAll('.material-filter-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var type = btn.getAttribute('data-material-filter') || '';
+          row.querySelectorAll('.material-filter-btn').forEach(function (item) {
+            item.classList.toggle('active', item === btn);
+          });
+          var section = row.closest('.materials-section');
+          if (!section) return;
+          section.querySelectorAll('.material-card').forEach(function (card) {
+            card.hidden = !!type && card.getAttribute('data-material-type') !== type;
+          });
+        });
+      });
+    });
+  }
 })();

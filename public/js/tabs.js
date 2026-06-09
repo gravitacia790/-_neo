@@ -1,9 +1,22 @@
 function initTabs() {
   var scrollMemory = {};
-  var allTabs = ['profile', 'school', 'events', 'directors', 'expert', 'gl', 'internship', 'calendar'];
-  var primaryTabs = ['directors', 'expert', 'gl', 'calendar'];
-  var moreTabs = ['profile', 'school', 'events', 'internship'];
-  if (isAdmin()) { allTabs.push('admin'); moreTabs.push('admin'); var adminBtn = document.querySelector('.admin-only'); if (adminBtn) adminBtn.style.display = ''; }
+  var tabRegistry = [
+    { id: 'profile', navGroup: 'more', render: updateProfileRatingDisplay },
+    { id: 'school', navGroup: 'more' },
+    { id: 'events', navGroup: 'more', render: renderEvents },
+    { id: 'directors', navGroup: 'primary', render: renderDirectors },
+    { id: 'expert', navGroup: 'primary', render: renderExpertView },
+    { id: 'gl', navGroup: 'primary', render: renderGL },
+    { id: 'internship', navGroup: 'more', render: renderInternship },
+    { id: 'calendar', navGroup: 'primary', render: renderCalendar },
+    { id: 'admin', navGroup: 'more', adminOnly: true, render: renderAdminPanel },
+  ];
+  var availableTabs = tabRegistry.filter(function (tab) { return !tab.adminOnly || isAdmin(); });
+  var allTabs = availableTabs.map(function (tab) { return tab.id; });
+  var moreTabs = availableTabs.filter(function (tab) { return tab.navGroup === 'more'; }).map(function (tab) { return tab.id; });
+  var tabMap = {};
+  availableTabs.forEach(function (tab) { tabMap[tab.id] = tab; });
+  if (isAdmin()) { var adminBtn = document.querySelector('.admin-only'); if (adminBtn) adminBtn.style.display = ''; }
 
   var navBtns = document.querySelectorAll('#topNav button');
   var mobileNavBtns = document.querySelectorAll('#mobileBottomNav button');
@@ -190,14 +203,8 @@ function initTabs() {
   }
 
   function renderTabContent(tabId) {
-    if (tabId === 'directors') renderDirectors();
-    if (tabId === 'events') renderEvents();
-    if (tabId === 'expert') renderExpertView();
-    if (tabId === 'profile') updateProfileRatingDisplay();
-    if (tabId === 'gl') renderGL();
-    if (tabId === 'internship') renderInternship();
-    if (tabId === 'calendar') renderCalendar();
-    if (tabId === 'admin' && isAdmin()) renderAdminPanel();
+    var tab = tabMap[tabId];
+    if (tab && typeof tab.render === 'function') tab.render();
   }
 
   function switchTab(tabId, opts) {

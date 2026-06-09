@@ -11,6 +11,7 @@ router.get(
   safe('materials')(async (req, res) => {
     const category = (req.query.category || '').toString().trim();
     const eventId = (req.query.eventId || '').toString().trim();
+    const materialType = (req.query.type || '').toString().trim();
     const params = [];
     let where = 'WHERE published = 1';
     if (category) {
@@ -21,8 +22,12 @@ router.get(
       where += ' AND event_id = ?';
       params.push(eventId);
     }
+    if (materialType) {
+      where += ' AND material_type = ?';
+      params.push(materialType);
+    }
     const stmt = db.prepare(
-      `SELECT id, title, description, url, category, event_id, created_at
+      `SELECT id, title, description, url, category, material_type, event_id, created_at
        FROM seminar_materials
        ${where}
        ORDER BY created_at DESC`
@@ -35,6 +40,7 @@ router.get(
         description: r.description || '',
         url: r.url,
         category: r.category,
+        materialType: r.material_type || 'link',
         eventId: r.event_id || '',
         createdAt: r.created_at,
       })),

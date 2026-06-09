@@ -147,6 +147,12 @@ var API = (function () {
     deleteEvent: function (id) {
       return request('DELETE', '/api/events/' + id);
     },
+    updateEvent: function (id, data) {
+      return request('PUT', '/api/events/' + id, data);
+    },
+    cancelEventRegistration: function (eventId, registrationId) {
+      return request('DELETE', '/api/events/' + eventId + '/registrations/' + registrationId);
+    },
 
     getExtras: function (cat) {
       return request('GET', '/api/extras/' + cat);
@@ -154,10 +160,14 @@ var API = (function () {
     registerForExtra: function (cat, eventId, data) {
       return request('POST', '/api/extras/' + cat + '/' + eventId + '/register', data);
     },
-    getMaterials: function (category, eventId) {
+    cancelExtraRegistration: function (cat, eventId, registrationId) {
+      return request('DELETE', '/api/extras/' + cat + '/' + eventId + '/registrations/' + registrationId);
+    },
+    getMaterials: function (category, eventId, materialType) {
       var params = [];
       if (category) params.push('category=' + encodeURIComponent(category));
       if (eventId) params.push('eventId=' + encodeURIComponent(eventId));
+      if (materialType) params.push('type=' + encodeURIComponent(materialType));
       return request('GET', '/api/materials' + (params.length ? '?' + params.join('&') : ''));
     },
 

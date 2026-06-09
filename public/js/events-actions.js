@@ -119,6 +119,61 @@ function promptAndRegister(eventId) {
   });
 }
 
+function openEventEditModal(eventId) {
+  var events = APPSTATE.getEvents().cache || [];
+  var event = events.find(function (item) { return String(item.id) === String(eventId); });
+  if (!event) {
+    notify('Мероприятие не найдено');
+    return;
+  }
+  var modal = showModal(
+    'Редактировать мероприятие',
+    '<form class="registration-form" id="eventEditForm">' +
+      '<p class="modal-hint">Изменения сразу обновят карточку мероприятия и календарь. Архивные события будут скрыты от участников.</p>' +
+      '<div class="form-group"><label class="form-label">Название</label><input type="text" id="editEventTitle" value="' + escapeAttr(event.title) + '"></div>' +
+      '<div class="form-group"><label class="form-label">Дата и время</label><input type="text" id="editEventDate" value="' + escapeAttr(event.date) + '"></div>' +
+      '<div class="form-group"><label class="form-label">Описание</label><textarea id="editEventDesc" rows="3">' + escapeHtml(event.description) + '</textarea></div>' +
+      '<div class="form-group"><label class="form-label">Максимум участников</label><input type="number" id="editEventMax" min="1" value="' + escapeAttr(event.max) + '"></div>' +
+      '<div class="form-group"><label class="form-label">Статус</label><select id="editEventStatus"><option value="published">Опубликовано</option><option value="archived">Архив</option></select></div>' +
+      '<button class="save-btn" type="submit" id="eventEditSubmitBtn">Сохранить изменения</button>' +
+    '</form>'
+  );
+  var statusEl = modal.querySelector('#editEventStatus');
+  if (statusEl) statusEl.value = event.status || 'published';
+  var form = modal.querySelector('#eventEditForm');
+  var submit = modal.querySelector('#eventEditSubmitBtn');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var payload = {
+      title: modal.querySelector('#editEventTitle').value.trim(),
+      date: modal.querySelector('#editEventDate').value.trim(),
+      description: modal.querySelector('#editEventDesc').value.trim(),
+      max: modal.querySelector('#editEventMax').value || 1,
+      status: modal.querySelector('#editEventStatus').value,
+    };
+    if (!payload.title || !payload.date || !payload.description) {
+      notify('Заполните название, дату и описание');
+      return;
+    }
+    submit.disabled = true;
+    submit.dataset.defaultText = submit.textContent;
+    submit.textContent = 'Сохраняем...';
+    API.updateEvent(event.id, payload)
+      .then(function () {
+        modal.remove();
+        notify('Мероприятие обновлено');
+        renderEvents();
+      })
+      .catch(function (err) {
+        notify(getUiErrorMessage(err, 'Не удалось обновить мероприятие.'));
+      })
+      .finally(function () {
+        submit.disabled = false;
+        submit.textContent = submit.dataset.defaultText || 'Сохранить изменения';
+      });
+  });
+}
+
 function bindEventListActions(container) {
   container.querySelectorAll('[data-action="reg"]').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -127,10 +182,40 @@ function bindEventListActions(container) {
   });
   container.querySelectorAll('[data-action="del"]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      if (!confirm('Удалить?')) return;
-      API.deleteEvent(btn.getAttribute('data-id')).then(renderEvents).catch(function (err) {
-        notify(err.message || 'Ошибка');
+      confirmDialog({
+        title: 'Удалить мероприятие?',
+        message: 'Мероприятие исчезнет из списка и календаря.',
+        confirmText: 'Удалить',
+      }).then(function (confirmed) {
+        if (!confirmed) return;
+        API.deleteEvent(btn.getAttribute('data-id')).then(renderEvents).catch(function (err) {
+          notify(err.message || 'Ошибка');
+        });
       });
+    });
+  });
+  container.querySelectorAll('[data-action="cancel-reg"]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      confirmDialog({
+        title: 'Отменить регистрацию?',
+        message: 'Участник будет удалён из списка мероприятия.',
+        confirmText: 'Отменить',
+      }).then(function (confirmed) {
+        if (!confirmed) return;
+        API.cancelEventRegistration(btn.getAttribute('data-event-id'), btn.getAttribute('data-registration-id'))
+          .then(function () {
+            notify('Регистрация отменена');
+            renderEvents();
+          })
+          .catch(function (err) {
+            notify(getUiErrorMessage(err, 'Не удалось отменить регистрацию.'));
+          });
+      });
+    });
+  });
+  container.querySelectorAll('[data-action="edit"]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openEventEditModal(btn.getAttribute('data-id'));
     });
   });
 }
@@ -254,3 +339,4 @@ function bindCreateEvent() {
 
 window.promptAndRegister = promptAndRegister;
 window.openRegistrationModal = openRegistrationModal;
+window.openEventEditModal = openEventEditModal;

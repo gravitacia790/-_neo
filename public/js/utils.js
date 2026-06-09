@@ -93,6 +93,53 @@ function showModal(title, contentHtml) {
   return overlay;
 }
 
+function confirmDialog(options) {
+  options = options || {};
+  return new Promise(function (resolve) {
+    var overlay = showModal(
+      options.title || 'Подтвердите действие',
+      '<p class="modal-hint">' + escapeHtml(options.message || 'Продолжить?') + '</p>' +
+      '<div class="modal-actions">' +
+      '<button class="ghost-btn" type="button" data-dialog-action="cancel">' + escapeHtml(options.cancelText || 'Отмена') + '</button>' +
+      '<button class="save-btn" type="button" data-dialog-action="confirm">' + escapeHtml(options.confirmText || 'Подтвердить') + '</button>' +
+      '</div>'
+    );
+    var settled = false;
+    function settle(value) {
+      if (settled) return;
+      settled = true;
+      overlay.remove();
+      resolve(value);
+    }
+    overlay.querySelector('[data-dialog-action="cancel"]').addEventListener('click', function () { settle(false); });
+    overlay.querySelector('[data-dialog-action="confirm"]').addEventListener('click', function () { settle(true); });
+    overlay.querySelector('.close-modal').onclick = function () { settle(false); };
+    overlay.onclick = function (e) {
+      if (e.target === overlay) settle(false);
+    };
+  });
+}
+
+function feedbackDialog(options) {
+  options = options || {};
+  return new Promise(function (resolve) {
+    var overlay = showModal(
+      options.title || 'Готово',
+      '<p class="modal-hint">' + escapeHtml(options.message || '') + '</p>' +
+      '<div class="modal-actions"><button class="save-btn" type="button" data-dialog-action="ok">ОК</button></div>'
+    );
+    function close() {
+      overlay.remove();
+      resolve();
+    }
+    overlay.querySelector('[data-dialog-action="ok"]').addEventListener('click', close);
+    overlay.querySelector('.close-modal').onclick = close;
+    overlay.onclick = function (e) {
+      if (e.target === overlay) close();
+    };
+  });
+}
+
 function getCurrentUserEmail() {
   var u = API.getUser();
   return u ? u.email : null;

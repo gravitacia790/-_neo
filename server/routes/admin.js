@@ -16,6 +16,7 @@ const materialSchema = z.object({
   description: z.string().max(2000).optional().default(''),
   url: z.string().url().max(2000),
   category: z.enum(['gl', 'internship', 'calendar', 'general']).optional().default('gl'),
+  materialType: z.enum(['presentation', 'recording', 'document', 'link']).optional().default('link'),
   eventId: z.string().max(120).optional().default(''),
   published: z.boolean().optional().default(true),
 });
@@ -33,6 +34,7 @@ function serializeMaterial(row) {
     description: row.description || '',
     url: row.url,
     category: row.category,
+    materialType: row.material_type || 'link',
     eventId: row.event_id || '',
     published: !!row.published,
     createdBy: row.created_by_name || '',
@@ -115,18 +117,57 @@ router.get(
   '/overview',
   safe('admin')(async (req, res) => {
     const directors = await db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director'").get();
-    const events = await db.prepare('SELECT COUNT(*) AS c FROM events WHERE deleted_at IS NULL').get();
+    const events = await db.prepare("SELECT COUNT(*) AS c FROM events WHERE deleted_at IS NULL AND status = 'published'").get();
     const eventRegs = await db.prepare('SELECT COUNT(*) AS c FROM event_registrations').get();
     const extraRegs = await db.prepare('SELECT COUNT(*) AS c FROM extra_registrations').get();
     const materials = await db.prepare('SELECT COUNT(*) AS c FROM seminar_materials WHERE published = 1').get();
     const announcements = await db.prepare('SELECT COUNT(*) AS c FROM announcements').get();
+    const eventRegs7 = await db
+      .prepare("SELECT COUNT(*) AS c FROM event_registrations WHERE registered_at >= NOW() - INTERVAL '7 days'")
+      .get();
+    const extraRegs7 = await db
+      .prepare("SELECT COUNT(*) AS c FROM extra_registrations WHERE registered_at >= NOW() - INTERVAL '7 days'")
+      .get();
+    const upcomingEvents = await db
+      .prepare(
+        `SELECT id, title, date, created_at
+         FROM events
+         WHERE deleted_at IS NULL AND status = 'published'
+         ORDER BY created_at DESC
+         LIMIT 5`
+      )
+      .all();
+    const topEvents = await db
+      .prepare(
+        `SELECT e.id, e.title, e.date, COUNT(r.id) AS registrations_count
+         FROM events e
+         LEFT JOIN event_registrations r ON r.event_id = e.id
+         WHERE e.deleted_at IS NULL
+         GROUP BY e.id, e.title, e.date
+         ORDER BY registrations_count DESC, e.created_at DESC
+         LIMIT 5`
+      )
+      .all();
     res.json({
       overview: {
         directors: Number(directors.c),
         events: Number(events.c),
         registrations: Number(eventRegs.c) + Number(extraRegs.c),
+        registrationsLast7Days: Number(eventRegs7.c) + Number(extraRegs7.c),
         materials: Number(materials.c),
         announcements: Number(announcements.c),
+        upcomingEvents: upcomingEvents.map((e) => ({
+          id: e.id,
+          title: e.title,
+          date: e.date,
+          createdAt: e.created_at,
+        })),
+        topEvents: topEvents.map((e) => ({
+          id: e.id,
+          title: e.title,
+          date: e.date,
+          registrationsCount: Number(e.registrations_count || 0),
+        })),
       },
     });
   })
@@ -138,14 +179,14 @@ router.get(
     const rows = await db
       .prepare(
         `
-        SELECT e.id, e.title, e.date, e.description, e.max_participants, e.created_at,
+        SELECT e.id, e.title, e.date, e.description, e.max_participants, e.status, e.created_at, e.updated_at,
                u.name AS creator_name, u.email AS creator_email,
                COUNT(r.id) AS registrations_count
         FROM events e
         LEFT JOIN users u ON u.id = e.creator_id
         LEFT JOIN event_registrations r ON r.event_id = e.id
         WHERE e.deleted_at IS NULL
-        GROUP BY e.id, e.title, e.date, e.description, e.max_participants, e.created_at, u.name, u.email
+        GROUP BY e.id, e.title, e.date, e.description, e.max_participants, e.status, e.created_at, e.updated_at, u.name, u.email
         ORDER BY e.created_at DESC
         `
       )
@@ -157,10 +198,12 @@ router.get(
         date: r.date,
         description: r.description,
         max: r.max_participants,
+        status: r.status || 'published',
         creator: r.creator_name || '',
         creatorEmail: r.creator_email || '',
         registrationsCount: Number(r.registrations_count || 0),
         createdAt: r.created_at,
+        updatedAt: r.updated_at,
       })),
     });
   })
@@ -201,9 +244,9 @@ router.get(
     const eventRows = await db
       .prepare(
         `
-        SELECT 'event' AS source, e.id AS event_id, e.title AS event_title, e.date AS event_date,
+        SELECT 'event' AS source, r.id AS registration_id, e.id AS event_id, e.title AS event_title, e.date AS event_date,
                r.employee_name, r.position, r.school_name, r.phone, r.city, r.registered_at,
-               u.name AS registered_by_name, u.email AS registered_by_email
+               u.id AS registered_by_id, u.name AS registered_by_name, u.email AS registered_by_email
         FROM event_registrations r
         JOIN events e ON e.id = r.event_id
         LEFT JOIN users u ON u.id = r.registered_by
@@ -216,9 +259,9 @@ router.get(
     const extraRows = await db
       .prepare(
         `
-        SELECT r.category, r.event_id, r.employee_name, r.position, r.school_name,
+        SELECT r.id AS registration_id, r.category, r.event_id, r.employee_name, r.position, r.school_name,
                r.phone, r.city, r.registered_at,
-               u.name AS registered_by_name, u.email AS registered_by_email
+               u.id AS registered_by_id, u.name AS registered_by_name, u.email AS registered_by_email
         FROM extra_registrations r
         LEFT JOIN users u ON u.id = r.registered_by
         ORDER BY r.registered_at DESC
@@ -229,6 +272,8 @@ router.get(
     const registrations = eventRows
       .map((r) => ({
         source: 'Мероприятие',
+        registrationId: r.registration_id,
+        eventId: r.event_id,
         sourceKey: `event:${r.event_id}`,
         eventTitle: r.event_title,
         eventDate: r.event_date,
@@ -238,6 +283,7 @@ router.get(
         phone: r.phone || '',
         city: r.city || '',
         registeredBy: r.registered_by_name || '',
+        registeredById: r.registered_by_id,
         registeredByEmail: r.registered_by_email || '',
         registeredAt: r.registered_at,
       }))
@@ -246,6 +292,9 @@ router.get(
           const meta = getExtraMeta(r.category, r.event_id);
           return {
             source: getCategoryLabel(r.category),
+            registrationId: r.registration_id,
+            eventId: r.event_id,
+            category: r.category,
             sourceKey: `extra:${r.category}:${r.event_id}`,
             eventTitle: meta.title,
             eventDate: meta.date,
@@ -255,6 +304,7 @@ router.get(
             phone: r.phone || '',
             city: r.city || '',
             registeredBy: r.registered_by_name || '',
+            registeredById: r.registered_by_id,
             registeredByEmail: r.registered_by_email || '',
             registeredAt: r.registered_at,
           };
@@ -289,7 +339,7 @@ router.get(
     const rows = await db
       .prepare(
         `
-        SELECT a.id, a.title, a.message, a.audience, a.created_at, a.sent_at,
+        SELECT a.id, a.title, a.message, a.audience, a.recipient_count, a.created_at, a.sent_at,
                u.name AS created_by_name
         FROM announcements a
         LEFT JOIN users u ON u.id = a.created_by
@@ -304,6 +354,7 @@ router.get(
         title: r.title,
         message: r.message,
         audience: r.audience,
+        recipientCount: Number(r.recipient_count || 0),
         createdBy: r.created_by_name || '',
         createdAt: r.created_at,
         sentAt: r.sent_at,
@@ -320,10 +371,10 @@ router.post(
     const data = parsed.data;
     const info = await db
       .prepare(
-        `INSERT INTO seminar_materials (title, description, url, category, event_id, created_by, published)
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`
+        `INSERT INTO seminar_materials (title, description, url, category, material_type, event_id, created_by, published)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
       )
-      .run(data.title, data.description, data.url, data.category, data.eventId || null, req.user.id, data.published ? 1 : 0);
+      .run(data.title, data.description, data.url, data.category, data.materialType, data.eventId || null, req.user.id, data.published ? 1 : 0);
     const row = await db
       .prepare(
         `SELECT m.*, u.name AS created_by_name
@@ -347,10 +398,10 @@ router.put(
     const result = await db
       .prepare(
         `UPDATE seminar_materials
-         SET title = ?, description = ?, url = ?, category = ?, event_id = ?, published = ?, updated_at = NOW()
+         SET title = ?, description = ?, url = ?, category = ?, material_type = ?, event_id = ?, published = ?, updated_at = NOW()
          WHERE id = ?`
       )
-      .run(data.title, data.description, data.url, data.category, data.eventId || null, data.published ? 1 : 0, id);
+      .run(data.title, data.description, data.url, data.category, data.materialType, data.eventId || null, data.published ? 1 : 0, id);
     if (!result.rowCount) return res.status(404).json({ error: 'Материал не найден' });
     const row = await db
       .prepare(
@@ -385,10 +436,10 @@ router.post(
 
     const info = await db
       .prepare(
-        `INSERT INTO announcements (title, message, audience, created_by, sent_at)
-         VALUES (?, ?, ?, ?, NOW()) RETURNING id`
+        `INSERT INTO announcements (title, message, audience, recipient_count, created_by, sent_at)
+         VALUES (?, ?, ?, ?, ?, NOW()) RETURNING id`
       )
-      .run(data.title, data.message, data.audience, req.user.id);
+      .run(data.title, data.message, data.audience, recipientIds.length, req.user.id);
 
     for (const userId of recipientIds) {
       await db

@@ -1852,6 +1852,13 @@ body.nav-sheet-open {
   line-height: 1.35;
 }
 
+.cancel-inline-btn {
+  margin-top: 7px;
+  padding: 6px 10px !important;
+  font-size: 0.68rem !important;
+  align-self: flex-start;
+}
+
 .event-card button {
   padding: 8px 16px;
   border: none;
@@ -2037,6 +2044,118 @@ body.nav-sheet-open {
   color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.material-filter-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.material-filter-btn,
+.material-type-badge {
+  border: 1px solid var(--border-faint);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.material-filter-btn {
+  cursor: pointer;
+}
+
+.material-filter-btn.active {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: #fff;
+}
+
+.material-type-badge {
+  display: inline-block;
+  width: fit-content;
+  margin: 0 0 7px;
+  color: var(--crimson);
+}
+
+.event-materials {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-faint);
+  display: grid;
+  gap: 8px;
+}
+
+.event-materials strong {
+  color: var(--charcoal);
+  font-size: 0.8rem;
+}
+
+.event-materials a {
+  display: block;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--border-faint);
+  padding: 10px 12px;
+  color: var(--crimson);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.event-materials small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.event-capacity {
+  margin: 12px 0;
+  display: grid;
+  gap: 7px;
+}
+
+.event-capacity > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.event-capacity strong {
+  color: var(--charcoal);
+}
+
+.event-capacity-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-faint);
+}
+
+.event-capacity-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--crimson), var(--gold));
+}
+
+.event-card.is-full {
+  border-color: rgba(165, 42, 42, 0.28);
+}
+
+.event-actions button.is-disabled,
+.save-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
 }
 
 /* ── Admin Table ── */
@@ -2644,6 +2763,14 @@ body.nav-sheet-open {
   color: var(--text-muted);
   line-height: 1.5;
   margin: -8px 0 16px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 18px;
 }
 
 .registration-form {

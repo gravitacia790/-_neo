@@ -3,7 +3,7 @@ const globals = require('globals');
 const prettier = require('eslint-config-prettier');
 
 const frontendGlobals = [
-  'API', 'APPSTATE', 'escapeHtml', 'escapeAttr', 'notify', 'showModal',
+  'API', 'APPSTATE', 'escapeHtml', 'escapeAttr', 'notify', 'showModal', 'confirmDialog', 'feedbackDialog',
   'getCurrentUserEmail', 'getCurrentUserName', 'isAdmin',
   'getCurrentDirectorName', 'getCurrentSchoolName',
   'setMyProfileCache', 'getMyProfileCache', 'getMySchoolCache',
@@ -23,7 +23,7 @@ const frontendGlobals = [
   'renderProfileView', 'renderSchoolView', 'renderEventsView', 'renderDirectorsView', 'renderMentorsView', 'renderExpertView',
   'clearFormErrors', 'markFieldInvalid', 'showFormStatus', 'setButtonBusy', 'collectFormData', 'validateProfileForm', 'validateSchoolForm', 'initPhotoUpload'
   , 'renderEventsState', 'buildEventCardHtml', 'bindEventListActions', 'openRegistrationModal',
-  'renderDirectorCard', 'renderDirectorsState', 'bindDirectorActions', 'getDirectorsCache', 'normalizeMaxLink'
+  'renderDirectorCard', 'renderDirectorsState', 'bindDirectorActions', 'getDirectorsCache', 'normalizeMaxLink', 'getMaterialTypeLabel'
 ];
 
 module.exports = [
