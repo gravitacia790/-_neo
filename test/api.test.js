@@ -436,6 +436,9 @@ describe('Admin', () => {
     const res = await apiGet('/api/admin/registrations').set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.registrations).toBeInstanceOf(Array);
+    if (res.body.registrations.length) {
+      expect(res.body.registrations[0].sourceKey).toBeTruthy();
+    }
   });
 
   it('GET /api/admin/overview — админ получает показатели', async () => {
@@ -492,6 +495,14 @@ describe('Admin', () => {
       .prepare('SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND type = ? AND title = ?')
       .get(owner.id, 'admin_announcement', 'Важное объявление');
     expect(Number(notification.c)).toBeGreaterThan(0);
+
+    const historyForbidden = await apiGet('/api/admin/announcements').set('Authorization', `Bearer ${token}`);
+    expect(historyForbidden.status).toBe(403);
+
+    const history = await apiGet('/api/admin/announcements').set('Authorization', `Bearer ${adminToken}`);
+    expect(history.status).toBe(200);
+    expect(history.body.announcements).toBeInstanceOf(Array);
+    expect(history.body.announcements.some((a) => a.title === 'Важное объявление')).toBe(true);
   });
 });
 

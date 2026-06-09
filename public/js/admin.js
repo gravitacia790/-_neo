@@ -12,6 +12,7 @@ function renderAdminPanel() {
     API.getAdminEvents(),
     API.getAdminRegistrations(),
     API.getAdminMaterials(),
+    API.getAdminAnnouncements(),
   ])
     .then(function (results) {
       var overview = results[0].overview || {};
@@ -19,6 +20,7 @@ function renderAdminPanel() {
       var events = results[2].events || [];
       var registrations = results[3].registrations || [];
       var materials = results[4].materials || [];
+      var announcements = results[5].announcements || [];
       var html =
         '<h2 class="tab-title">Админ-панель</h2>' +
         '<div class="admin-tabs" id="adminTabs">' +
@@ -34,7 +36,7 @@ function renderAdminPanel() {
         buildEventsSection(events) +
         buildRegistrationsSection(registrations) +
         buildMaterialsSection(materials, events) +
-        buildBroadcastsSection(events);
+        buildBroadcastsSection(events, announcements);
 
       container.innerHTML = html;
       bindAdminTabs(container);
@@ -90,29 +92,34 @@ function buildEventsSection(events) {
       '<tr><td>' + escapeHtml(ev.title) + '</td><td>' + escapeHtml(ev.date || '—') + '</td><td>' +
       escapeHtml(ev.creator || '—') + (ev.creatorEmail ? '<br><small>' + escapeHtml(ev.creatorEmail) + '</small>' : '') +
       '</td><td>' + escapeHtml(ev.registrationsCount) + '</td><td>' + escapeHtml(ev.max || '—') + '</td><td>' +
+      '<button class="ghost-btn view-participants-btn" data-event-key="event:' + escapeAttr(ev.id) + '">Участники</button> ' +
       '<button class="ghost-btn delete-event-btn" data-id="' + escapeAttr(ev.id) + '">Снять</button></td></tr>';
   });
   return html + '</tbody></table></div></section>';
 }
 
 function buildRegistrationsSection(registrations) {
+  var sourceOptions = uniqueSorted(registrations.map(function (r) { return r.source; }));
+  var eventOptions = uniqueSorted(registrations.map(function (r) { return r.eventTitle; }));
+  var cityOptions = uniqueSorted(registrations.map(function (r) { return r.city; }).filter(Boolean));
   var html =
     '<section class="admin-section" data-admin-panel="registrations"><h3 class="section-label">Регистрации</h3>' +
-    '<button class="save-btn" id="exportRegistrationsBtn" style="margin:0 0 14px;">Выгрузить CSV</button>';
+    '<div class="admin-filter-row">' +
+    '<select id="registrationSourceFilter"><option value="">Все разделы</option>' + sourceOptions.map(function (v) { return '<option value="' + escapeAttr(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>' +
+    '<select id="registrationEventFilter"><option value="">Все мероприятия</option>' + eventOptions.map(function (v) { return '<option value="' + escapeAttr(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>' +
+    '<select id="registrationCityFilter"><option value="">Все города</option>' + cityOptions.map(function (v) { return '<option value="' + escapeAttr(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>' +
+    '<input id="registrationDateFromFilter" type="date" aria-label="Дата регистрации от">' +
+    '<input id="registrationDateToFilter" type="date" aria-label="Дата регистрации до">' +
+    '<input id="registrationEventKeyFilter" type="hidden">' +
+    '<button class="ghost-btn" id="resetRegistrationFiltersBtn">Сбросить</button>' +
+    '</div>' +
+    '<div class="admin-export-row"><button class="save-btn" id="exportRegistrationsBtn">Выгрузить текущую выборку CSV</button><span id="registrationsFilterSummary"></span></div>';
   if (!registrations.length) return html + '<div class="list-state">Регистраций пока нет</div></section>';
   html +=
     '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
     '<th>Раздел</th><th>Мероприятие</th><th>Дата</th><th>Участник</th><th>Телефон</th><th>Школа</th><th>Город</th><th>Зарегистрировал</th>' +
-    '</tr></thead><tbody>';
-  registrations.forEach(function (r) {
-    html +=
-      '<tr><td>' + escapeHtml(r.source) + '</td><td>' + escapeHtml(r.eventTitle) + '</td><td>' +
-      escapeHtml(r.eventDate || '—') + '</td><td>' + escapeHtml(r.participantName) + '</td><td>' +
-      escapeHtml(r.phone || '—') + '</td><td>' + escapeHtml(r.schoolName || '—') + '</td><td>' +
-      escapeHtml(r.city || '—') + '</td><td>' + escapeHtml(r.registeredBy || '—') +
-      (r.registeredByEmail ? '<br><small>' + escapeHtml(r.registeredByEmail) + '</small>' : '') + '</td></tr>';
-  });
-  return html + '</tbody></table></div></section>';
+    '</tr></thead><tbody id="adminRegistrationsBody"></tbody></table></div></section>';
+  return html;
 }
 
 function buildMaterialsSection(materials, events) {
@@ -145,7 +152,7 @@ function buildMaterialsSection(materials, events) {
   return html + '</div></section>';
 }
 
-function buildBroadcastsSection(events) {
+function buildBroadcastsSection(events, announcements) {
   var eventOptions = events.map(function (ev) {
     return '<option value="event:' + escapeAttr(ev.id) + '">Участники: ' + escapeHtml(ev.title) + '</option>';
   }).join('');
@@ -158,8 +165,27 @@ function buildBroadcastsSection(events) {
     '<option value="all">Все пользователи</option><option value="directors">Все директора</option>' +
     '<option value="category:gl">Участники ГЛ</option><option value="category:internship">Участники стажировок</option><option value="category:calendar">Участники календарных событий</option>' +
     eventOptions + '</select></div>' +
-    '<button class="save-btn" id="sendAnnouncementBtn">Отправить уведомление</button></div></section>'
+    '<button class="save-btn" id="sendAnnouncementBtn">Отправить уведомление</button></div>' +
+    buildAnnouncementsHistory(announcements) +
+    '</section>'
   );
+}
+
+function buildAnnouncementsHistory(announcements) {
+  var html = '<h3 class="section-label" style="margin-top:18px;">История рассылок</h3>';
+  if (!announcements.length) return html + '<div class="list-state">Рассылок пока нет</div>';
+  html += '<div class="admin-card-list">';
+  announcements.forEach(function (item) {
+    html +=
+      '<div class="admin-list-card">' +
+      '<strong>' + escapeHtml(item.title) + '</strong>' +
+      '<p>' + escapeHtml(item.message) + '</p>' +
+      '<small>Аудитория: ' + escapeHtml(getAudienceLabel(item.audience)) +
+      (item.createdBy ? ' • Автор: ' + escapeHtml(item.createdBy) : '') +
+      (item.sentAt ? ' • Отправлено: ' + escapeHtml(formatAdminDate(item.sentAt)) : '') +
+      '</small></div>';
+  });
+  return html + '</div>';
 }
 
 function csvCell(value) {
@@ -169,6 +195,27 @@ function csvCell(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value == null ? '' : String(value)).replace(/"/g, '&quot;');
+}
+
+function uniqueSorted(values) {
+  return Array.from(new Set(values.filter(Boolean))).sort(function (a, b) { return String(a).localeCompare(String(b), 'ru'); });
+}
+
+function getAudienceLabel(value) {
+  if (value === 'all') return 'Все пользователи';
+  if (value === 'directors') return 'Все директора';
+  if (value === 'category:gl') return 'Участники ГЛ';
+  if (value === 'category:internship') return 'Участники стажировок';
+  if (value === 'category:calendar') return 'Участники календарных событий';
+  if (value && value.indexOf('event:') === 0) return 'Участники мероприятия';
+  return value || 'Не указано';
+}
+
+function formatAdminDate(value) {
+  if (!value) return '';
+  var date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('ru-RU');
 }
 
 function bindAdminTabs(container) {
@@ -207,10 +254,14 @@ function resetMaterialForm() {
 }
 
 function bindAdminActions(container, data) {
+  var currentRegistrations = data.registrations.slice();
+  bindRegistrationFilters(container, data.registrations, function (filtered) {
+    currentRegistrations = filtered;
+  });
   var exportBtn = document.getElementById('exportRegistrationsBtn');
   if (exportBtn) {
     exportBtn.addEventListener('click', function () {
-      exportRegistrationsCsv(data.registrations);
+      exportRegistrationsCsv(currentRegistrations);
     });
   }
 
@@ -264,6 +315,19 @@ function bindAdminActions(container, data) {
     });
   });
 
+  container.querySelectorAll('.view-participants-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      activateAdminSection('registrations');
+      var keyInput = document.getElementById('registrationEventKeyFilter');
+      if (keyInput) keyInput.value = btn.getAttribute('data-event-key') || '';
+      var eventFilter = document.getElementById('registrationEventFilter');
+      if (eventFilter) eventFilter.value = '';
+      applyRegistrationFilters(data.registrations, function (filtered) {
+        currentRegistrations = filtered;
+      });
+    });
+  });
+
   var sendAnnouncementBtn = document.getElementById('sendAnnouncementBtn');
   if (sendAnnouncementBtn) {
     sendAnnouncementBtn.addEventListener('click', function () {
@@ -282,6 +346,106 @@ function bindAdminActions(container, data) {
         .finally(function () { sendAnnouncementBtn.disabled = false; });
     });
   }
+}
+
+function activateAdminSection(sectionName) {
+  document.querySelectorAll('.admin-tab').forEach(function (item) {
+    item.classList.toggle('active', item.getAttribute('data-admin-section') === sectionName);
+  });
+  document.querySelectorAll('.admin-section').forEach(function (panel) {
+    panel.classList.toggle('active', panel.getAttribute('data-admin-panel') === sectionName);
+  });
+}
+
+function bindRegistrationFilters(container, registrations, onChange) {
+  var filterIds = [
+    'registrationSourceFilter',
+    'registrationEventFilter',
+    'registrationCityFilter',
+    'registrationDateFromFilter',
+    'registrationDateToFilter',
+  ];
+  filterIds.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', function () {
+        var keyInput = document.getElementById('registrationEventKeyFilter');
+        if (keyInput) keyInput.value = '';
+        applyRegistrationFilters(registrations, onChange);
+      });
+    }
+  });
+  var resetBtn = document.getElementById('resetRegistrationFiltersBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      filterIds.concat(['registrationEventKeyFilter']).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      applyRegistrationFilters(registrations, onChange);
+    });
+  }
+  applyRegistrationFilters(registrations, onChange);
+}
+
+function applyRegistrationFilters(registrations, onChange) {
+  var source = getInputValue('registrationSourceFilter');
+  var eventTitle = getInputValue('registrationEventFilter');
+  var city = getInputValue('registrationCityFilter');
+  var dateFrom = getInputValue('registrationDateFromFilter');
+  var dateTo = getInputValue('registrationDateToFilter');
+  var eventKey = getInputValue('registrationEventKeyFilter');
+  var filtered = registrations.filter(function (r) {
+    if (eventKey && r.sourceKey !== eventKey) return false;
+    if (source && r.source !== source) return false;
+    if (eventTitle && r.eventTitle !== eventTitle) return false;
+    if (city && r.city !== city) return false;
+    if (dateFrom || dateTo) {
+      var registeredDate = parseDateOnly(r.registeredAt);
+      if (!registeredDate) return false;
+      if (dateFrom && registeredDate < dateFrom) return false;
+      if (dateTo && registeredDate > dateTo) return false;
+    }
+    return true;
+  });
+  renderRegistrationsTable(filtered);
+  updateRegistrationsSummary(filtered.length, registrations.length);
+  if (typeof onChange === 'function') onChange(filtered);
+}
+
+function getInputValue(id) {
+  var el = document.getElementById(id);
+  return el ? el.value : '';
+}
+
+function parseDateOnly(value) {
+  if (!value) return '';
+  var date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+
+function renderRegistrationsTable(registrations) {
+  var body = document.getElementById('adminRegistrationsBody');
+  if (!body) return;
+  if (!registrations.length) {
+    body.innerHTML = '<tr><td colspan="8" class="list-state">По текущим фильтрам регистраций нет</td></tr>';
+    return;
+  }
+  body.innerHTML = registrations.map(function (r) {
+    return (
+      '<tr><td>' + escapeHtml(r.source) + '</td><td>' + escapeHtml(r.eventTitle) + '</td><td>' +
+      escapeHtml(r.eventDate || '—') + '</td><td>' + escapeHtml(r.participantName) + '</td><td>' +
+      escapeHtml(r.phone || '—') + '</td><td>' + escapeHtml(r.schoolName || '—') + '</td><td>' +
+      escapeHtml(r.city || '—') + '</td><td>' + escapeHtml(r.registeredBy || '—') +
+      (r.registeredByEmail ? '<br><small>' + escapeHtml(r.registeredByEmail) + '</small>' : '') + '</td></tr>'
+    );
+  }).join('');
+}
+
+function updateRegistrationsSummary(visibleCount, totalCount) {
+  var el = document.getElementById('registrationsFilterSummary');
+  if (el) el.textContent = 'Показано: ' + visibleCount + ' из ' + totalCount;
 }
 
 function exportRegistrationsCsv(registrations) {

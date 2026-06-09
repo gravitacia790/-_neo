@@ -219,6 +219,9 @@ var API = (function () {
     getAdminMaterials: function () {
       return request('GET', '/api/admin/materials');
     },
+    getAdminAnnouncements: function () {
+      return request('GET', '/api/admin/announcements');
+    },
     createAdminMaterial: function (data) {
       return request('POST', '/api/admin/materials', data);
     },

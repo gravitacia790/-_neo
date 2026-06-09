@@ -201,7 +201,7 @@ router.get(
     const eventRows = await db
       .prepare(
         `
-        SELECT 'event' AS source, e.title AS event_title, e.date AS event_date,
+        SELECT 'event' AS source, e.id AS event_id, e.title AS event_title, e.date AS event_date,
                r.employee_name, r.position, r.school_name, r.phone, r.city, r.registered_at,
                u.name AS registered_by_name, u.email AS registered_by_email
         FROM event_registrations r
@@ -229,6 +229,7 @@ router.get(
     const registrations = eventRows
       .map((r) => ({
         source: 'Мероприятие',
+        sourceKey: `event:${r.event_id}`,
         eventTitle: r.event_title,
         eventDate: r.event_date,
         participantName: r.employee_name,
@@ -245,6 +246,7 @@ router.get(
           const meta = getExtraMeta(r.category, r.event_id);
           return {
             source: getCategoryLabel(r.category),
+            sourceKey: `extra:${r.category}:${r.event_id}`,
             eventTitle: meta.title,
             eventDate: meta.date,
             participantName: r.employee_name,
@@ -278,6 +280,35 @@ router.get(
       )
       .all();
     res.json({ materials: rows.map(serializeMaterial) });
+  })
+);
+
+router.get(
+  '/announcements',
+  safe('admin')(async (req, res) => {
+    const rows = await db
+      .prepare(
+        `
+        SELECT a.id, a.title, a.message, a.audience, a.created_at, a.sent_at,
+               u.name AS created_by_name
+        FROM announcements a
+        LEFT JOIN users u ON u.id = a.created_by
+        ORDER BY a.created_at DESC
+        LIMIT 100
+        `
+      )
+      .all();
+    res.json({
+      announcements: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        message: r.message,
+        audience: r.audience,
+        createdBy: r.created_by_name || '',
+        createdAt: r.created_at,
+        sentAt: r.sent_at,
+      })),
+    });
   })
 );
 

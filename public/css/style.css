@@ -2142,6 +2142,38 @@ body.nav-sheet-open {
   margin-bottom: 16px;
 }
 
+.admin-filter-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-filter-row select,
+.admin-filter-row input {
+  width: 100%;
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--charcoal);
+  padding: 10px 12px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.78rem;
+}
+
+.admin-export-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-export-row span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
 .admin-card-list {
   display: grid;
   gap: 12px;
@@ -2173,6 +2205,9 @@ body.nav-sheet-open {
     padding: 10px 12px;
     flex: 0 1 auto;
     min-width: 70px;
+  }
+  .admin-filter-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .directors-grid {
     grid-template-columns: repeat(2, 1fr);
