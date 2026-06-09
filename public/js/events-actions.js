@@ -174,7 +174,30 @@ function bindCreateEvent() {
       return;
     }
     btn.disabled = false;
-    btn.textContent = btn.dataset.defaultText || 'Создать мероприятие';
+    btn.textContent = btn.dataset.defaultText || 'Опубликовать мероприятие';
+  }
+
+  function formatPublishedEventDate(value) {
+    var raw = String(value || '').trim();
+    var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!match) return raw;
+    var monthNames = [
+      'января',
+      'февраля',
+      'марта',
+      'апреля',
+      'мая',
+      'июня',
+      'июля',
+      'августа',
+      'сентября',
+      'октября',
+      'ноября',
+      'декабря',
+    ];
+    var monthIndex = parseInt(match[2], 10) - 1;
+    var monthName = monthNames[monthIndex] || match[2];
+    return parseInt(match[3], 10) + ' ' + monthName + ' ' + match[1] + ', ' + match[4] + ':' + match[5];
   }
 
   btn.addEventListener('click', function () {
@@ -210,7 +233,7 @@ function bindCreateEvent() {
     if (!Number.isFinite(max)) max = 999;
     setCreateEventBusy(true);
 
-    API.createEvent({ title: title, date: date, description: desc, max: max, isSpeaker: isSpeaker })
+    API.createEvent({ title: title, date: formatPublishedEventDate(date), description: desc, max: max, isSpeaker: isSpeaker })
       .then(function () {
         if (titleEl) titleEl.value = '';
         if (dateEl) dateEl.value = '';
@@ -218,7 +241,7 @@ function bindCreateEvent() {
         if (maxEl) maxEl.value = '';
         if (speakerEl) speakerEl.checked = false;
         renderEvents();
-        notify('Мероприятие создано');
+        notify('Мероприятие опубликовано и добавлено в календарь');
       })
       .catch(function (err) {
         notify(getUiErrorMessage(err, 'Не удалось создать мероприятие.'));

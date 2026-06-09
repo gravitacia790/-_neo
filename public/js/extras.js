@@ -60,7 +60,7 @@
     container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
     Promise.all([
       API.getExtras('calendar').then(function (r) { return r.items; }),
-      API.getEvents().then(function (r) { return r.events; }),
+      API.getEvents(1, 100).then(function (r) { return r.events; }),
     ])
       .then(function (results) {
         var catalogItems = results[0];
@@ -85,9 +85,9 @@
           }
           return null;
         }
-        function addToDay(key, title, desc, dateStr) {
+        function addToDay(key, item) {
           if (!eventsByDay[key]) eventsByDay[key] = [];
-          eventsByDay[key].push({ title: title, desc: desc, dateStr: dateStr });
+          eventsByDay[key].push(item);
         }
         catalogItems.forEach(function (item) {
           var dm = item.date.match(/^(\d+)\s*[–-]?\d*\s*([а-яё]+)/i) || item.date.match(/^(\d+)\s+([а-яё]+)/i);
@@ -96,13 +96,32 @@
             var mn = russianMonths[dm[2].toLowerCase()];
             if (mn !== undefined) {
               var key = year + '-' + String(mn + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-              addToDay(key, item.title, item.description, item.date);
+              addToDay(key, {
+                source: 'calendar',
+                id: item.id,
+                title: item.title,
+                desc: item.description,
+                dateStr: item.date,
+                registrations: item.registrations || [],
+              });
             }
           }
         });
         apiEvents.forEach(function (ev) {
           var isoKey = toIsoDate(ev.date);
-          if (isoKey) addToDay(isoKey, ev.title, ev.description, ev.date);
+          if (isoKey) {
+            addToDay(isoKey, {
+              source: 'published',
+              id: ev.id,
+              title: ev.title,
+              desc: ev.description,
+              dateStr: ev.date,
+              creator: ev.creator,
+              creatorSchool: ev.creatorSchool,
+              max: ev.max,
+              registrations: ev.registrations || [],
+            });
+          }
         });
         var fuzzyItems = catalogItems.filter(function (item) { return !item.date.match(/^\d/); });
         var firstDay = new Date(year, month, 1).getDay();
@@ -159,7 +178,18 @@
             if (!evts.length) return;
             var mh = '<div class="modal-overlay" id="calDetailModal"><div class="modal-content"><button class="close-modal" id="closeCalDetail">✕</button><h2>📅 ' + ek + '</h2>';
             evts.forEach(function (ev) {
-              mh += '<div style="background:var(--cream);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid var(--border-faint);"><div style="font-weight:700;font-size:0.9rem;color:var(--charcoal);margin-bottom:4px;">' + escapeHtml(ev.title) + '</div><div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">📅 ' + escapeHtml(ev.dateStr) + '</div><div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.4;">' + escapeHtml(ev.desc) + '</div></div>';
+              var count = (ev.registrations || []).length;
+              var capacity = ev.max ? ' / ' + escapeHtml(ev.max) : '';
+              var creator = ev.creator ? '<div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:6px;">👤 ' + escapeHtml(ev.creator) + (ev.creatorSchool ? ' • ' + escapeHtml(ev.creatorSchool) : '') + '</div>' : '';
+              mh +=
+                '<div style="background:var(--cream);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid var(--border-faint);">' +
+                '<div style="font-weight:700;font-size:0.9rem;color:var(--charcoal);margin-bottom:4px;">' + escapeHtml(ev.title) + '</div>' +
+                '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">📅 ' + escapeHtml(ev.dateStr) + '</div>' +
+                creator +
+                '<div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.4;">' + escapeHtml(ev.desc) + '</div>' +
+                '<div style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">👥 Записалось: ' + count + capacity + '</div>' +
+                '<button class="save-btn cal-register-btn" style="margin-top:12px;padding:9px;" data-source="' + escapeAttr(ev.source) + '" data-id="' + escapeAttr(ev.id) + '" data-title="' + escapeAttr(ev.title) + '">📝 Зарегистрироваться</button>' +
+                '</div>';
             });
             mh += '</div></div>';
             var md = document.createElement('div');
@@ -167,6 +197,24 @@
             document.body.appendChild(md);
             document.getElementById('closeCalDetail').addEventListener('click', function () { md.remove(); });
             md.addEventListener('click', function (e) { if (e.target === md) md.remove(); });
+            md.querySelectorAll('.cal-register-btn').forEach(function (btn) {
+              btn.addEventListener('click', function () {
+                var source = btn.getAttribute('data-source');
+                var eventId = btn.getAttribute('data-id');
+                var title = btn.getAttribute('data-title');
+                md.remove();
+                openRegistrationModal({
+                  onSubmit: function (data) {
+                    if (source === 'published') return API.registerForEvent(eventId, data);
+                    return API.registerForExtra('calendar', eventId, data);
+                  },
+                  successMessage: 'Участник зарегистрирован на "' + title + '"',
+                  onSuccess: function () {
+                    window.renderCalendar();
+                  },
+                });
+              });
+            });
           });
         });
         container.querySelectorAll('.cal-nav').forEach(function (btn) {

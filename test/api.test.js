@@ -266,6 +266,11 @@ describe('Events', () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.event.title).toBe('Тестовое мероприятие');
+    const owner = await db.prepare('SELECT id FROM users WHERE email = ?').get('test@school.ru');
+    const notification = await db
+      .prepare('SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND type = ? AND message LIKE ?')
+      .get(owner.id, 'event_created', '%Тестовое мероприятие%');
+    expect(Number(notification.c)).toBeGreaterThan(0);
   });
 
   it('GET /api/events — список мероприятий', async () => {
@@ -416,6 +421,20 @@ describe('Admin', () => {
     const res = await apiGet('/api/admin/users').set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.users).toBeInstanceOf(Array);
+  });
+
+  it('GET /api/admin/registrations — админ получает регистрации', async () => {
+    const directorRes = await apiGet('/api/admin/registrations').set('Authorization', `Bearer ${token}`);
+    expect(directorRes.status).toBe(403);
+
+    const loginRes = await apiPost('/api/auth/login').send({
+      email: 'admin@test.ru',
+      password: 'admin123',
+    });
+    const adminToken = loginRes.body.token;
+    const res = await apiGet('/api/admin/registrations').set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.registrations).toBeInstanceOf(Array);
   });
 });
 

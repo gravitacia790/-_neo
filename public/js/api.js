@@ -131,8 +131,12 @@ var API = (function () {
       return request('POST', '/api/directors/' + directorId + '/favorite');
     },
 
-    getEvents: function () {
-      return request('GET', '/api/events');
+    getEvents: function (page, limit) {
+      var params = [];
+      if (page) params.push('page=' + page);
+      if (limit) params.push('limit=' + limit);
+      var qs = params.length ? '?' + params.join('&') : '';
+      return request('GET', '/api/events' + qs);
     },
     createEvent: function (data) {
       return request('POST', '/api/events', data);
@@ -196,6 +200,9 @@ var API = (function () {
 
     getAdminUsers: function () {
       return request('GET', '/api/admin/users');
+    },
+    getAdminRegistrations: function () {
+      return request('GET', '/api/admin/registrations');
     },
   };
 })();

@@ -75,8 +75,8 @@ async function createEvent(user, data) {
   await addActivity(user.id, 'create_event', `Создал мероприятие "${data.title}"`, 10);
   if (data.isSpeaker) await addActivity(user.id, 'speaker', `Выступил спикером на "${data.title}"`, 15);
   const row = await db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
-  await broadcastAndInsert('event_created', 'Новое мероприятие', `Создано мероприятие "${data.title}"`, user.id);
-  const recipients = await db.prepare('SELECT id FROM users WHERE id != ?').all(user.id);
+  await broadcastAndInsert('event_created', 'Новое мероприятие', `Создано мероприятие "${data.title}"`);
+  const recipients = await db.prepare('SELECT id FROM users').all();
   await sendPushToMany(
     recipients.map((r) => r.id),
     {
