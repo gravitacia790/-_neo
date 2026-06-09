@@ -154,6 +154,12 @@ var API = (function () {
     registerForExtra: function (cat, eventId, data) {
       return request('POST', '/api/extras/' + cat + '/' + eventId + '/register', data);
     },
+    getMaterials: function (category, eventId) {
+      var params = [];
+      if (category) params.push('category=' + encodeURIComponent(category));
+      if (eventId) params.push('eventId=' + encodeURIComponent(eventId));
+      return request('GET', '/api/materials' + (params.length ? '?' + params.join('&') : ''));
+    },
 
     getMyRating: function () {
       return request('GET', '/api/ratings/me');
@@ -201,8 +207,29 @@ var API = (function () {
     getAdminUsers: function () {
       return request('GET', '/api/admin/users');
     },
+    getAdminOverview: function () {
+      return request('GET', '/api/admin/overview');
+    },
+    getAdminEvents: function () {
+      return request('GET', '/api/admin/events');
+    },
     getAdminRegistrations: function () {
       return request('GET', '/api/admin/registrations');
+    },
+    getAdminMaterials: function () {
+      return request('GET', '/api/admin/materials');
+    },
+    createAdminMaterial: function (data) {
+      return request('POST', '/api/admin/materials', data);
+    },
+    updateAdminMaterial: function (id, data) {
+      return request('PUT', '/api/admin/materials/' + id, data);
+    },
+    deleteAdminMaterial: function (id) {
+      return request('DELETE', '/api/admin/materials/' + id);
+    },
+    sendAdminAnnouncement: function (data) {
+      return request('POST', '/api/admin/announcements', data);
     },
   };
 })();

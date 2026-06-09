@@ -2004,6 +2004,41 @@ body.nav-sheet-open {
   margin-top: 14px !important;
 }
 
+.materials-section {
+  margin-top: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.material-card {
+  display: block;
+  padding: 15px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--border-faint);
+  color: var(--charcoal);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.material-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.material-card strong,
+.material-card span {
+  display: block;
+}
+
+.material-card span {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 /* ── Admin Table ── */
 .admin-table {
   width: 100%;
@@ -2031,6 +2066,92 @@ body.nav-sheet-open {
 
 .admin-table tr:hover td {
   background: var(--cream);
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 16px;
+  margin-bottom: 10px;
+}
+
+.admin-tab {
+  border: 1px solid var(--border-faint);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 9px 13px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.admin-tab.active {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: #fff;
+}
+
+.admin-tab:active {
+  transform: scale(0.97);
+}
+
+.admin-section {
+  display: none;
+}
+
+.admin-section.active {
+  display: block;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-metric,
+.admin-form-card,
+.admin-list-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-metric span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  margin-bottom: 6px;
+}
+
+.admin-metric strong {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.8rem;
+  color: var(--charcoal);
+}
+
+.admin-form-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-list-card p {
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 /* ── Responsive ── */

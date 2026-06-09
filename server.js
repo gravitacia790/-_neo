@@ -131,6 +131,7 @@ function createApp() {
   app.use('/api/directors', require('./server/routes/directors'));
   app.use('/api/events', require('./server/routes/events'));
   app.use('/api/extras', require('./server/routes/extras'));
+  app.use('/api/materials', require('./server/routes/materials'));
   app.use('/api/ratings', require('./server/routes/ratings'));
   app.use('/api/notifications', require('./server/routes/notifications'));
   app.use('/api/push', require('./server/routes/push'));

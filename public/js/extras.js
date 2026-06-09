@@ -4,8 +4,13 @@
     var container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
-    API.getExtras(category)
-      .then(function (resp) {
+    Promise.all([
+      API.getExtras(category),
+      API.getMaterials(category),
+    ])
+      .then(function (results) {
+        var resp = results[0];
+        var materials = results[1].materials || [];
         var titleMap = {
           gl: 'Гравитация лидерства',
           internship: 'Стажировка',
@@ -25,6 +30,7 @@
             }).join('') + '</ul></div>' : '') +
             '</div>';
         });
+        html += buildMaterialsHtml(materials);
         container.innerHTML = html;
         container.querySelectorAll('[data-action="reg"]').forEach(function (btn) {
           btn.addEventListener('click', function () {
@@ -47,6 +53,19 @@
       });
   }
 
+  function buildMaterialsHtml(materials) {
+    if (!materials || !materials.length) return '';
+    var html = '<div class="materials-section"><div class="section-label">Материалы семинаров</div>';
+    materials.forEach(function (m) {
+      html +=
+        '<a class="material-card" href="' + escapeAttr(m.url) + '" target="_blank" rel="noopener">' +
+        '<strong>' + escapeHtml(m.title) + '</strong>' +
+        (m.description ? '<span>' + escapeHtml(m.description) + '</span>' : '') +
+        '</a>';
+    });
+    return html + '</div>';
+  }
+
   window.renderGL = function () { renderCategory('gl', 'gl'); };
   window.renderInternship = function () { renderCategory('internship', 'internship'); };
   window.renderCalendar = function () {
@@ -61,10 +80,12 @@
     Promise.all([
       API.getExtras('calendar').then(function (r) { return r.items; }),
       API.getEvents(1, 100).then(function (r) { return r.events; }),
+      API.getMaterials('calendar').then(function (r) { return r.materials || []; }),
     ])
       .then(function (results) {
         var catalogItems = results[0];
         var apiEvents = results[1];
+        var materials = results[2];
         var russianMonths = { января: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5, июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11 };
         var monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
         var dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -170,6 +191,7 @@
           });
           html += '</div>';
         }
+        html += buildMaterialsHtml(materials);
         container.innerHTML = html;
         container.querySelectorAll('.cal-day.cal-has-events').forEach(function (el) {
           el.addEventListener('click', function () {

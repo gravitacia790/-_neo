@@ -407,17 +407,22 @@ describe('Ratings', () => {
 });
 
 describe('Admin', () => {
+  async function loginAdmin() {
+    const loginRes = await apiPost('/api/auth/login').send({
+      email: 'admin@test.ru',
+      password: 'admin123',
+    });
+    expect(loginRes.status).toBe(200);
+    return loginRes.body.token;
+  }
+
   it('GET /api/admin/users — доступ запрещён директору', async () => {
     const res = await apiGet('/api/admin/users').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 
   it('GET /api/admin/users — админ получает список', async () => {
-    const loginRes = await apiPost('/api/auth/login').send({
-      email: 'admin@test.ru',
-      password: 'admin123',
-    });
-    const adminToken = loginRes.body.token;
+    const adminToken = await loginAdmin();
     const res = await apiGet('/api/admin/users').set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.users).toBeInstanceOf(Array);
@@ -427,14 +432,66 @@ describe('Admin', () => {
     const directorRes = await apiGet('/api/admin/registrations').set('Authorization', `Bearer ${token}`);
     expect(directorRes.status).toBe(403);
 
-    const loginRes = await apiPost('/api/auth/login').send({
-      email: 'admin@test.ru',
-      password: 'admin123',
-    });
-    const adminToken = loginRes.body.token;
+    const adminToken = await loginAdmin();
     const res = await apiGet('/api/admin/registrations').set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.registrations).toBeInstanceOf(Array);
+  });
+
+  it('GET /api/admin/overview — админ получает показатели', async () => {
+    const adminToken = await loginAdmin();
+    const res = await apiGet('/api/admin/overview').set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(typeof res.body.overview.directors).toBe('number');
+    expect(typeof res.body.overview.events).toBe('number');
+  });
+
+  it('POST /api/admin/materials — создаёт опубликованный материал', async () => {
+    const forbidden = await apiPost('/api/admin/materials').set('Authorization', `Bearer ${token}`).send({
+      title: 'Forbidden Material',
+      url: 'https://example.com/forbidden',
+      category: 'gl',
+    });
+    expect(forbidden.status).toBe(403);
+
+    const adminToken = await loginAdmin();
+    const create = await apiPost('/api/admin/materials').set('Authorization', `Bearer ${adminToken}`).send({
+      title: 'Материал API',
+      description: 'Ссылка на материалы семинара',
+      url: 'https://example.com/material',
+      category: 'gl',
+      published: true,
+    });
+    expect(create.status).toBe(200);
+    expect(create.body.material.title).toBe('Материал API');
+
+    const publicList = await apiGet('/api/materials?category=gl').set('Authorization', `Bearer ${token}`);
+    expect(publicList.status).toBe(200);
+    expect(publicList.body.materials.some((m) => m.title === 'Материал API')).toBe(true);
+  });
+
+  it('POST /api/admin/announcements — отправляет уведомления выбранной аудитории', async () => {
+    const forbidden = await apiPost('/api/admin/announcements').set('Authorization', `Bearer ${token}`).send({
+      title: 'Нельзя',
+      message: 'Директор не может отправлять админские рассылки',
+      audience: 'all',
+    });
+    expect(forbidden.status).toBe(403);
+
+    const adminToken = await loginAdmin();
+    const send = await apiPost('/api/admin/announcements').set('Authorization', `Bearer ${adminToken}`).send({
+      title: 'Важное объявление',
+      message: 'Проверка админской рассылки',
+      audience: 'all',
+    });
+    expect(send.status).toBe(200);
+    expect(send.body.recipients).toBeGreaterThan(0);
+
+    const owner = await db.prepare('SELECT id FROM users WHERE email = ?').get('test@school.ru');
+    const notification = await db
+      .prepare('SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND type = ? AND title = ?')
+      .get(owner.id, 'admin_announcement', 'Важное объявление');
+    expect(Number(notification.c)).toBeGreaterThan(0);
   });
 });
 
