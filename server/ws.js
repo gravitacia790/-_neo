@@ -70,6 +70,18 @@ function notifyUser(userId, eventType, payload) {
   sendToUser(userId, { type: eventType, ...payload, timestamp: new Date().toISOString() });
 }
 
+function close() {
+  if (!wss) return Promise.resolve();
+
+  const activeServer = wss;
+  wss = null;
+  activeServer.clients.forEach((client) => client.terminate());
+
+  return new Promise((resolve) => {
+    activeServer.close(() => resolve());
+  });
+}
+
 async function insertNotification(userId, type, title, message) {
   await db.prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)').run(
     userId,
@@ -88,4 +100,4 @@ async function broadcastAndInsert(eventType, title, message, excludeUserId) {
   broadcast({ type: eventType, title, message, timestamp: new Date().toISOString() });
 }
 
-module.exports = { init, broadcast, sendToUser, notify, notifyUser, insertNotification, broadcastAndInsert };
+module.exports = { init, close, broadcast, sendToUser, notify, notifyUser, insertNotification, broadcastAndInsert };

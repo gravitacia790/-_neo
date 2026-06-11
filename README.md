@@ -1,28 +1,38 @@
 # Гравитация NEO
 
-Профессиональное сообщество директоров школ Московской области.
+Веб-платформа профессионального сообщества директоров школ Московской области. Система объединяет профили директоров и школ, поиск коллег и наставников, мероприятия, сообщения, уведомления, рейтинг активности и административные инструменты.
+
+## Текущая архитектура
+
+- приложение работает как единый Node.js-сервис: Express раздаёт SPA и обслуживает API;
+- единственная рабочая база данных — PostgreSQL;
+- схема изменяется версионируемыми миграциями из `server/migrations/postgres/`;
+- Vitest использует совместимую PostgreSQL-базу в памяти через `pg-mem`;
+- WebSocket обеспечивает обновление уведомлений без перезагрузки страницы;
+- production-конфигурация рассчитана на same-origin развёртывание.
 
 ## Стек
 
-- **Бэкенд:** Node.js 22+ + Express 4, PostgreSQL (`pg`), JWT в httpOnly cookie, Zod, WebSocket (`ws`).
+- **Бэкенд:** Node.js 22 + Express 4, PostgreSQL (`pg`), JWT в httpOnly cookie, Zod, WebSocket (`ws`).
 - **Фронтенд:** ванильный JS + HTML + CSS (same-origin с API).
 - **Безопасность:** helmet (CSP), CSRF double-submit, rate limit, bcrypt, structured logs.
+- **Качество:** Vitest, Supertest, Playwright, ESLint, Prettier, GitHub Actions.
 
 ## Запуск (development)
 
 ```bash
-npm install
+npm ci
 copy .env.example .env   # Windows
-# Задайте JWT_SECRET (мин. 32 символа) и ADMIN_* в .env
+# Задайте DATABASE_URL, JWT_SECRET (мин. 32 символа) и ADMIN_* в .env
 npm start
 ```
 
 Откройте http://localhost:3000
 
 При первом запуске:
-- создаются таблицы в PostgreSQL (если отсутствуют)
+- применяются ожидающие миграции PostgreSQL
 - создаётся администратор (если заданы `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
-- сидируются 4 демо-директора (`elena@school11.ru` / `demo1234`)
+- в development создаются 4 демо-директора (`elena@school11.ru` / `demo1234`)
 
 ## Production (рекомендуемая схема)
 
@@ -74,14 +84,14 @@ Node использует `trust proxy` — cookie `Secure` и rate limit раб
 
 1. Загрузите изменения в GitHub.
 2. В Render: **New +** → **Blueprint** → выберите этот репозиторий.
-3. Render создаст сервис `gravitacia-neo` и диск `gravitacia-data`.
+3. Render создаст сервис `gravitacia-neo` и базу PostgreSQL.
 4. В переменных окружения задайте:
    - `ADMIN_EMAIL`
    - `ADMIN_PASSWORD` (сильный, 10+ символов)
 5. Дождитесь первого деплоя и откройте URL сервиса.
 
 Важно:
-- задайте `DATABASE_URL` в переменных окружения сервиса;
+- `DATABASE_URL` подключается к PostgreSQL из Blueprint;
 - `JWT_SECRET` генерируется автоматически Blueprint-ом;
 - при free-plan сервис может "засыпать", первый запрос после сна медленнее.
 
@@ -106,7 +116,12 @@ npm run db:migrate:down     # откатить 1 миграцию
 
 ```bash
 npm test
+npm run lint
+npm run format:check
+npm run test:e2e
 ```
+
+Браузерные тесты запускают отдельный сервер на порту `3100` с временной базой `pg-mem`. Они не используют development или production PostgreSQL.
 
 ## Структура проекта
 
@@ -118,10 +133,15 @@ DS-neo/
 │   ├── middleware/   (authRequired, csrf, safe, adminRequired)
 │   ├── routes/       (auth, profile, directors, events, …)
 │   ├── services/
-│   └── migrations/
+│   └── migrations/postgres/   (up/down SQL-миграции)
 ├── public/           (SPA + js/api.js)
-└── test/
+├── test/             (API и интеграционные тесты)
+├── e2e/              (браузерные сценарии)
+├── docs/             (эксплуатация и техническое описание)
+└── .github/workflows/ci.yml
 ```
+
+Подробности эксплуатации и развёртывания находятся в [`docs/RUNBOOK.md`](docs/RUNBOOK.md), актуальное описание требований — в [`docs/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ.md`](docs/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ.md).
 
 ## API (кратко)
 

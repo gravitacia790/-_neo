@@ -10,6 +10,26 @@ function nextE2eEmail() {
   return 'e2e-director-' + Date.now() + '-' + e2eUserCounter + '@school.ru';
 }
 
+async function openTopTab(page, tab) {
+  await page.click('#topNav button[data-tab="' + tab + '"]');
+  await expect(page.locator('#' + tab + '.active')).toBeVisible();
+}
+
+async function openMoreTab(page, tab) {
+  await page.click('#moreNavBtn');
+  await page.click('#moreRow button[data-tab="' + tab + '"]');
+  await expect(page.locator('#' + tab + '.active')).toBeVisible();
+}
+
+async function submitRegistration(page) {
+  const modal = page.locator('.modal-overlay').last();
+  await expect(modal.locator('#registrationForm')).toBeVisible();
+  await modal.locator('#regParticipantSchool').fill('E2E School');
+  await modal.locator('#regParticipantCity').fill('Moscow');
+  await modal.locator('#registrationSubmitBtn').click();
+  await expect(modal).toBeHidden();
+}
+
 async function registerOrLogin(page) {
   const email = nextE2eEmail();
   await page.goto('/');
@@ -22,7 +42,11 @@ async function registerOrLogin(page) {
   await page.fill('#regPassword', E2E_PASSWORD);
   await page.click('#doRegisterBtn');
 
-  const appVisible = await page.locator('#mainContent').waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false);
+  const appVisible = await page
+    .locator('#mainContent')
+    .waitFor({ state: 'visible', timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
   if (!appVisible) {
     await page.click('.modal-overlay .close-modal');
     await page.click('#loginBtn');
@@ -100,11 +124,10 @@ test.describe('UI buttons DB flows', () => {
     await expect(page.locator('#contactActionsModal [data-contact-action="phone"]')).toBeVisible();
     await page.click('.modal-overlay .close-modal');
 
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="events"]');
+    await openMoreTab(page, 'events');
     await expect(page.locator('#eventsList')).toBeVisible();
     await page.fill('#eventTitle', 'E2E Event');
-    await page.fill('#eventDate', '30 июня 2026');
+    await page.fill('#eventDate', '2026-06-30T10:00');
     await page.fill('#eventDesc', 'E2E auto event');
     await page.fill('#eventMax', '20');
     await page.click('#createEventBtn');
@@ -112,16 +135,14 @@ test.describe('UI buttons DB flows', () => {
 
     await page.reload();
     await expect(page.locator('#mainContent')).toBeVisible();
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="events"]');
+    await openMoreTab(page, 'events');
     await expect(page.locator('#eventsList')).toContainText('E2E Event');
   });
 
   test('profile and school save buttons persist through DB-backed APIs', async ({ page }) => {
     await registerOrLogin(page);
 
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="profile"]');
+    await openMoreTab(page, 'profile');
     await expect(page.locator('#profile.active #saveProfileBtn')).toBeVisible();
     await page.fill('#directorPhone', '+7 (999) 111-22-33');
     await page.fill('#uniqueExperience', 'E2E уникальный опыт');
@@ -129,8 +150,7 @@ test.describe('UI buttons DB flows', () => {
     await page.click('#saveProfileBtn');
     await expect(page.locator('#profile .form-status-box')).toContainText('Профиль сохранён');
 
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="school"]');
+    await openMoreTab(page, 'school');
     await expect(page.locator('#doSaveSchool')).toBeVisible();
     const editBtn = page.locator('#editSchoolBtn');
     if (await editBtn.isVisible().catch(() => false)) {
@@ -145,34 +165,24 @@ test.describe('UI buttons DB flows', () => {
 
     await page.reload();
     await expect(page.locator('#mainContent')).toBeVisible();
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="school"]');
+    await openMoreTab(page, 'school');
     await expect(page.locator('#schoolView')).toContainText('E2E School');
   });
 
   test('extras and calendar buttons execute full click path', async ({ page, context }) => {
     await registerOrLogin(page);
 
-    page.on('dialog', async (dialog) => {
-      const msg = dialog.message().toLowerCase();
-      if (msg.includes('фио')) await dialog.accept('E2E Employee');
-      else if (msg.includes('должность')) await dialog.accept('Методист');
-      else if (msg.includes('школ')) await dialog.accept('E2E School');
-      else await dialog.dismiss();
-    });
-
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="gl"]');
+    await openTopTab(page, 'gl');
     await expect(page.locator('#gl [data-action="reg"]').first()).toBeVisible();
     await page.locator('#gl [data-action="reg"]').first().click();
+    await submitRegistration(page);
 
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="internship"]');
+    await openMoreTab(page, 'internship');
     await expect(page.locator('#internship [data-action="reg"]').first()).toBeVisible();
     await page.locator('#internship [data-action="reg"]').first().click();
+    await submitRegistration(page);
 
-    await page.click('#moreNavBtn');
-    await page.click('#moreRow button[data-tab="calendar"]');
+    await openTopTab(page, 'calendar');
     await expect(page.locator('#calendar .cal-nav[data-dir="next"]')).toBeVisible();
     await page.click('#calendar .cal-nav[data-dir="next"]');
     await page.click('#calendar .cal-nav[data-dir="prev"]');
@@ -199,7 +209,8 @@ test.describe('UI buttons DB flows', () => {
     const adminBtn = page.locator('#moreRow button[data-tab="admin"]');
     await expect(adminBtn).toBeVisible();
     await adminBtn.click();
-    await expect(page.locator('#admin .admin-table')).toBeVisible();
+    await expect(page.locator('#admin [data-admin-panel="overview"].active')).toBeVisible();
+    await expect(page.locator('#admin .admin-metric-grid')).toBeVisible();
   });
 
   test('mobile more button opens and closes sheet', async ({ browser }) => {
@@ -246,9 +257,8 @@ test.describe('UI buttons DB flows', () => {
     await page.click('.modal-overlay .close-modal');
     await expect(detailModal).toBeHidden();
 
-    await page.click('#mobileMoreBtn');
-    await page.click('#moreSheet [data-tab="gl"]');
-    await expect(page.locator('#gl')).toBeVisible();
+    await page.click('#mobileBottomNav button[data-tab="gl"]');
+    await expect(page.locator('#gl.active')).toBeVisible();
 
     await page.click('#mobileMoreBtn');
     await expect(page.locator('#moreSheet')).toBeVisible();
@@ -278,4 +288,3 @@ test.describe('UI buttons DB flows', () => {
     await context.close();
   });
 });
-

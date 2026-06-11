@@ -1,5 +1,8 @@
 const { defineConfig, devices } = require('@playwright/test');
 
+const e2ePort = Number(process.env.E2E_PORT || 3100);
+const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
+
 module.exports = defineConfig({
   testDir: './e2e',
   timeout: 60000,
@@ -11,10 +14,11 @@ module.exports = defineConfig({
   workers: 1,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: e2eBaseUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: process.env.CI ? 'retain-on-failure' : 'off',
+    serviceWorkers: 'block',
   },
   projects: [
     {
@@ -24,16 +28,15 @@ module.exports = defineConfig({
   ],
   webServer: {
     command: 'node server.js',
-    url: 'http://127.0.0.1:3000/health',
+    url: `${e2eBaseUrl}/health`,
     reuseExistingServer: false,
     timeout: 120000,
     env: {
       NODE_ENV: 'test',
-      PORT: '3000',
+      PORT: String(e2ePort),
       JWT_SECRET: 'playwright-jwt-secret-at-least-32-characters-long',
       ADMIN_EMAIL: 'admin@test.ru',
       ADMIN_PASSWORD: 'admin123',
     },
   },
 });
-

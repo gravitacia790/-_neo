@@ -6,18 +6,17 @@ dist/
 .DS_Store
 Thumbs.db
 
-# База данных
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+# Локальные временные данные
+data/
 
 # Загрузки пользователей
 public/uploads/*
 !public/uploads/.gitkeep
 
 # Сгенерированные артефакты
-docs/
+docs/*
+!docs/RUNBOOK.md
+!docs/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ.md
 archive/
 coverage/
 *.docx

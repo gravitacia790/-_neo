@@ -15,7 +15,7 @@ const { db, pool } = require('./server/db');
 const config = validateConfig(process.env);
 
 const { init: initDb, checkWeakAdminPassword } = require('./server/db');
-const { init: initWs } = require('./server/ws');
+const { init: initWs, close: closeWs } = require('./server/ws');
 // Dev-only: generate ADMIN_PASSWORD in memory before DB seed creates admin.
 checkWeakAdminPassword();
 let server;
@@ -197,12 +197,19 @@ if (require.main === module) {
   startServer();
 }
 
-function shutdown(signal) {
+async function shutdown(signal) {
   logger.warn('server.shutdown_started', { signal });
   if (!server) {
     process.exit(0);
     return;
   }
+
+  try {
+    await closeWs();
+  } catch (err) {
+    logger.warn('server.ws_close_failed', { message: err.message });
+  }
+
   server.close(async () => {
     try {
       await pool.end();

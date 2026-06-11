@@ -27,7 +27,7 @@ const frontendGlobals = [
 ];
 
 module.exports = [
-  { ignores: ['node_modules/', 'data/', 'docs/', 'public/uploads/'] },
+  { ignores: ['node_modules/', 'docs/', 'public/uploads/'] },
   js.configs.recommended,
   prettier,
   // Конфиг ESLint
