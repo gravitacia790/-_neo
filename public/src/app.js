@@ -255,7 +255,7 @@ export function loadCommunityStats() {
       if (status) status.setAttribute('data-loading', 'false');
     })
     .catch(function () {
-      if (el && !el.textContent) el.textContent = '0';
+      if (el) el.textContent = '0';
       if (status) status.setAttribute('data-loading', 'false');
     });
 }
