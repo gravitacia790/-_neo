@@ -122,15 +122,56 @@ async function sendPushToUser(userId, payload) {
   return { ok: true, delivered };
 }
 
+async function runWithConcurrency(items, concurrency, worker) {
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await worker(items[index]);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function sendPushToMany(userIds, payload) {
   if (!Array.isArray(userIds) || !userIds.length) return { ok: true, delivered: 0 };
-  const uniq = Array.from(new Set(userIds.filter(Boolean)));
-  let total = 0;
-  for (const uid of uniq) {
-    const result = await sendPushToUser(uid, payload);
-    if (result && result.delivered) total += result.delivered;
+  if (!ensureWebPushConfigured()) return { ok: false, skipped: 'push_not_configured' };
+
+  const uniq = Array.from(new Set(userIds.map(Number).filter(Number.isFinite)));
+  const rows = [];
+  const queryChunkSize = 500;
+  for (let offset = 0; offset < uniq.length; offset += queryChunkSize) {
+    const chunk = uniq.slice(offset, offset + queryChunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    const chunkRows = await db
+      .prepare(
+        `SELECT endpoint, p256dh, auth
+         FROM push_subscriptions
+         WHERE user_id IN (${placeholders})
+         ORDER BY last_seen_at DESC`
+      )
+      .all(...chunk);
+    rows.push(...chunkRows);
   }
-  return { ok: true, delivered: total };
+
+  let delivered = 0;
+  await runWithConcurrency(rows, 20, async (row) => {
+    const subscription = {
+      endpoint: row.endpoint,
+      keys: { p256dh: row.p256dh, auth: row.auth },
+    };
+    try {
+      await webPush.sendNotification(subscription, JSON.stringify(payload || {}));
+      delivered++;
+    } catch (err) {
+      const status = err && err.statusCode;
+      if (status === 404 || status === 410) {
+        await db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(row.endpoint);
+      }
+    }
+  });
+
+  return { ok: true, delivered };
 }
 
 module.exports = {

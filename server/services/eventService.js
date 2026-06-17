@@ -100,7 +100,9 @@ async function createEvent(user, data) {
   if (data.isSpeaker) await addActivity(user.id, 'speaker', `Выступил спикером на "${data.title}"`, 15);
   const row = await db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
   await broadcastAndInsert('event_created', 'Новое мероприятие', `Создано мероприятие "${data.title}"`);
-  const recipients = await db.prepare('SELECT id FROM users').all();
+  const recipients = await db
+    .prepare("SELECT id FROM users WHERE role = 'admin' OR approval_status = 'approved'")
+    .all();
   await sendPushToMany(
     recipients.map((r) => r.id),
     {
@@ -129,7 +131,9 @@ async function createEvent(user, data) {
 
 async function registerForEvent(user, eventId, data) {
   const result = await db.transaction(async (trx) => {
-    const ev = await trx.prepare("SELECT * FROM events WHERE id = ? AND deleted_at IS NULL AND status = 'published'").get(eventId);
+    const ev = await trx
+      .prepare("SELECT * FROM events WHERE id = ? AND deleted_at IS NULL AND status = 'published' FOR UPDATE")
+      .get(eventId);
     if (!ev) return { error: 'Мероприятие не найдено', status: 404 };
     const dupRow = await trx
       .prepare(
@@ -221,7 +225,11 @@ async function deleteEvent(user, eventId) {
   if (ev.creator_id !== user.id && user.role !== 'admin') return { error: 'Удалять можно только свои мероприятия', status: 403 };
   await db.prepare('UPDATE events SET deleted_at = NOW() WHERE id = ?').run(ev.id);
   await broadcastAndInsert('event_deleted', 'Мероприятие удалено', `Мероприятие "${ev.title}" удалено`, ev.creator_id);
-  const recipients = await db.prepare('SELECT id FROM users WHERE id != ?').all(ev.creator_id);
+  const recipients = await db
+    .prepare(
+      "SELECT id FROM users WHERE id != ? AND (role = 'admin' OR approval_status = 'approved')"
+    )
+    .all(ev.creator_id);
   await sendPushToMany(
     recipients.map((r) => r.id),
     {

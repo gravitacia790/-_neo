@@ -10,6 +10,7 @@ process.env.ADMIN_PASSWORD = 'admin123';
 process.env.VAPID_SUBJECT = '';
 process.env.VAPID_PUBLIC_KEY = '';
 process.env.VAPID_PRIVATE_KEY = '';
+process.env.REDIS_URL = '';
 
 const { init: initDb } = await import('../server/db.js');
 await initDb();
@@ -86,17 +87,27 @@ describe('CSRF', () => {
 });
 
 describe('Auth', () => {
-  it('POST /api/auth/register — создаёт пользователя', async () => {
+  it('POST /api/auth/register — создаёт заявку и не авторизует пользователя', async () => {
     const res = await apiPost('/api/auth/register').send({
       name: 'Тестовый Директор',
       email: 'test@school.ru',
       password: 'test123456',
       phone: '+7 (999) 999-99-99',
     });
-    expect(res.status).toBe(200);
-    expect(res.body.token).toBeTruthy();
+    expect(res.status).toBe(202);
+    expect(res.body.token).toBeUndefined();
+    expect(res.body.pendingApproval).toBe(true);
     expect(res.body.user.name).toBe('Тестовый Директор');
-    token = res.body.token;
+
+    const admin = await db.prepare("SELECT id FROM users WHERE role = 'admin'").get();
+    const adminNotification = await db
+      .prepare(
+        `SELECT COUNT(*) AS c
+         FROM notifications
+         WHERE user_id = ? AND type = 'registration_pending' AND message LIKE ?`
+      )
+      .get(admin.id, '%test@school.ru%');
+    expect(Number(adminNotification.c)).toBe(1);
   });
 
   it('POST /api/auth/register — не даёт создать дубликат', async () => {
@@ -108,13 +119,91 @@ describe('Auth', () => {
     expect(res.status).toBe(409);
   });
 
-  it('POST /api/auth/login — успешный вход', async () => {
+  it('POST /api/auth/login — не пускает до подтверждения', async () => {
+    const res = await apiPost('/api/auth/login').send({
+      email: 'test@school.ru',
+      password: 'test123456',
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain('ожидает подтверждения');
+  });
+
+  it('PUT /api/admin/applications/:id — админ подтверждает заявку', async () => {
+    const adminLogin = await apiPost('/api/auth/login').send({
+      email: 'admin@test.ru',
+      password: 'admin123',
+    });
+    expect(adminLogin.status).toBe(200);
+    const applications = await apiGet('/api/admin/applications').set(
+      'Authorization',
+      `Bearer ${adminLogin.body.token}`
+    );
+    const application = applications.body.applications.find((item) => item.email === 'test@school.ru');
+    expect(application).toBeTruthy();
+    const approve = await apiPut('/api/admin/applications/' + application.id)
+      .set('Authorization', `Bearer ${adminLogin.body.token}`)
+      .send({ status: 'approved' });
+    expect(approve.status).toBe(200);
+    expect(approve.body.status).toBe('approved');
+    const decisionNotification = await db
+      .prepare(
+        `SELECT COUNT(*) AS c
+         FROM notifications
+         WHERE user_id = ? AND type = 'registration_decision' AND title = ?`
+      )
+      .get(application.id, 'Регистрация подтверждена');
+    expect(Number(decisionNotification.c)).toBe(1);
+
+    const repeat = await apiPut('/api/admin/applications/' + application.id)
+      .set('Authorization', `Bearer ${adminLogin.body.token}`)
+      .send({ status: 'rejected' });
+    expect(repeat.status).toBe(404);
+  });
+
+  it('POST /api/auth/login — успешный вход после подтверждения', async () => {
     const res = await apiPost('/api/auth/login').send({
       email: 'test@school.ru',
       password: 'test123456',
     });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTruthy();
+    token = res.body.token;
+  });
+
+  it('PUT /api/admin/applications/:id — отклонённая заявка не получает доступ', async () => {
+    const email = 'rejected@school.ru';
+    const registration = await apiPost('/api/auth/register').send({
+      name: 'Отклонённый Директор',
+      email,
+      password: 'test123456',
+    });
+    expect(registration.status).toBe(202);
+
+    const adminLogin = await apiPost('/api/auth/login').send({
+      email: 'admin@test.ru',
+      password: 'admin123',
+    });
+    const applications = await apiGet('/api/admin/applications').set(
+      'Authorization',
+      `Bearer ${adminLogin.body.token}`
+    );
+    const application = applications.body.applications.find((item) => item.email === email);
+    const rejection = await apiPut('/api/admin/applications/' + application.id)
+      .set('Authorization', `Bearer ${adminLogin.body.token}`)
+      .send({ status: 'rejected' });
+    expect(rejection.status).toBe(200);
+    const decisionNotification = await db
+      .prepare(
+        `SELECT COUNT(*) AS c
+         FROM notifications
+         WHERE user_id = ? AND type = 'registration_decision' AND title = ?`
+      )
+      .get(application.id, 'Заявка отклонена');
+    expect(Number(decisionNotification.c)).toBe(1);
+
+    const login = await apiPost('/api/auth/login').send({ email, password: 'test123456' });
+    expect(login.status).toBe(403);
+    expect(login.body.error).toContain('отклонена');
   });
 
   it('POST /api/auth/login — неверный пароль', async () => {
@@ -132,6 +221,9 @@ describe('Auth', () => {
       email,
       password: 'test123456',
     });
+    await db
+      .prepare("UPDATE users SET approval_status = 'approved', approved_at = NOW() WHERE email = ?")
+      .run(email);
     for (let i = 0; i < 4; i++) {
       const res = await apiPost('/api/auth/login').send({ email, password: 'wrong' });
       expect(res.status).toBe(401);
@@ -140,13 +232,14 @@ describe('Auth', () => {
     expect(blocked.status).toBe(429);
   });
 
-  it('POST /api/auth/forgot-password + reset-password — сбрасывает пароль', async () => {
+  it('POST /api/auth/forgot-password + reset-password — сбрасывает пароль по коду', async () => {
     const forgot = await apiPost('/api/auth/forgot-password').send({ email: 'test@school.ru' });
     expect(forgot.status).toBe(200);
-    expect(forgot.body.token).toBeTruthy();
+    expect(forgot.body.code).toMatch(/^\d{6}$/);
 
     const reset = await apiPost('/api/auth/reset-password').send({
-      token: forgot.body.token,
+      email: 'test@school.ru',
+      code: forgot.body.code,
       password: 'newpass123',
     });
     expect(reset.status).toBe(200);
@@ -156,6 +249,22 @@ describe('Auth', () => {
       password: 'newpass123',
     });
     expect(login.status).toBe(200);
+  });
+
+  it('POST /api/auth/reset-password — неверный код отклоняется', async () => {
+    await apiPost('/api/auth/forgot-password').send({ email: 'test@school.ru' });
+    const reset = await apiPost('/api/auth/reset-password').send({
+      email: 'test@school.ru',
+      code: '000000',
+      password: 'whatever123',
+    });
+    expect(reset.status).toBe(400);
+  });
+
+  it('POST /api/auth/forgot-password — не раскрывает несуществующий email', async () => {
+    const res = await apiPost('/api/auth/forgot-password').send({ email: 'nobody@nowhere.ru' });
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBeUndefined();
   });
 
   it('GET /api/auth/me — возвращает пользователя', async () => {
@@ -601,6 +710,90 @@ describe('Admin', () => {
     const announcement = history.body.announcements.find((a) => a.title === 'Важное объявление');
     expect(announcement).toBeTruthy();
     expect(announcement.recipientCount).toBe(send.body.recipients);
+  });
+});
+
+describe('MAX integration', () => {
+  const savedEnv = {};
+  beforeAll(() => {
+    ['MAX_BOT_TOKEN', 'MAX_BOT_NAME', 'MAX_WEBHOOK_SECRET', 'MAX_API_BASE'].forEach((k) => {
+      savedEnv[k] = process.env[k];
+    });
+  });
+  afterAll(() => {
+    Object.keys(savedEnv).forEach((k) => {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    });
+  });
+
+  it('status — интеграция выключена без токена', async () => {
+    delete process.env.MAX_BOT_TOKEN;
+    const res = await apiGet('/api/integrations/max/status').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(false);
+  });
+
+  it('link — 503 пока интеграция не настроена', async () => {
+    delete process.env.MAX_BOT_TOKEN;
+    const res = await apiPost('/api/integrations/max/link').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(503);
+  });
+
+  it('полный цикл привязки через webhook bot_started', async () => {
+    process.env.MAX_BOT_TOKEN = 'test-token';
+    process.env.MAX_BOT_NAME = 'GravitaciaBot';
+    process.env.MAX_WEBHOOK_SECRET = 'wh-secret';
+    process.env.MAX_API_BASE = 'http://127.0.0.1:1'; // недостижимо: отправка тихо падает
+
+    const status0 = await apiGet('/api/integrations/max/status').set('Authorization', `Bearer ${token}`);
+    expect(status0.body.enabled).toBe(true);
+    expect(status0.body.linked).toBe(false);
+
+    const link = await apiPost('/api/integrations/max/link').set('Authorization', `Bearer ${token}`);
+    expect(link.status).toBe(200);
+    expect(link.body.deepLink).toContain('https://max.ru/GravitaciaBot?start=');
+    const nonce = link.body.deepLink.split('start=')[1];
+    expect(nonce).toBeTruthy();
+
+    const wrongSecret = await apiPost('/api/integrations/max/webhook?secret=nope').send({
+      update_type: 'bot_started',
+      payload: nonce,
+      user: { user_id: 555001, username: 'tester' },
+    });
+    expect(wrongSecret.status).toBe(403);
+
+    const hook = await apiPost('/api/integrations/max/webhook?secret=wh-secret').send({
+      update_type: 'bot_started',
+      payload: nonce,
+      user: { user_id: 555001, username: 'tester' },
+    });
+    expect(hook.status).toBe(200);
+
+    const status1 = await apiGet('/api/integrations/max/status').set('Authorization', `Bearer ${token}`);
+    expect(status1.body.linked).toBe(true);
+    expect(status1.body.maxUsername).toBe('tester');
+
+    const unlink = await apiPost('/api/integrations/max/unlink').set('Authorization', `Bearer ${token}`);
+    expect(unlink.status).toBe(200);
+    const status2 = await apiGet('/api/integrations/max/status').set('Authorization', `Bearer ${token}`);
+    expect(status2.body.linked).toBe(false);
+  });
+
+  it('webhook с истёкшим/неверным nonce не привязывает', async () => {
+    process.env.MAX_BOT_TOKEN = 'test-token';
+    process.env.MAX_BOT_NAME = 'GravitaciaBot';
+    process.env.MAX_WEBHOOK_SECRET = 'wh-secret';
+    process.env.MAX_API_BASE = 'http://127.0.0.1:1';
+
+    const hook = await apiPost('/api/integrations/max/webhook?secret=wh-secret').send({
+      update_type: 'bot_started',
+      payload: 'totally-invalid-nonce',
+      user: { user_id: 555002, username: 'ghost' },
+    });
+    expect(hook.status).toBe(200);
+    const status = await apiGet('/api/integrations/max/status').set('Authorization', `Bearer ${token}`);
+    expect(status.body.linked).toBe(false);
   });
 });
 

@@ -37,6 +37,7 @@ module.exports = defineConfig({
       JWT_SECRET: 'playwright-jwt-secret-at-least-32-characters-long',
       ADMIN_EMAIL: 'admin@test.ru',
       ADMIN_PASSWORD: 'admin123',
+      REDIS_URL: '',
     },
   },
 });

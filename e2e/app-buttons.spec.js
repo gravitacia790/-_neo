@@ -42,23 +42,41 @@ async function registerOrLogin(page) {
   await page.fill('#regPassword', E2E_PASSWORD);
   await page.click('#doRegisterBtn');
 
-  const appVisible = await page
-    .locator('#mainContent')
-    .waitFor({ state: 'visible', timeout: 3000 })
-    .then(() => true)
-    .catch(() => false);
-  if (!appVisible) {
-    await page.click('.modal-overlay .close-modal');
-    await page.click('#loginBtn');
-    await expect(page.locator('#doLoginBtn')).toBeVisible();
-    await page.fill('#loginEmail', email);
-    await page.fill('#loginPassword', E2E_PASSWORD);
-    await page.click('#doLoginBtn');
-  }
+  await expect(page.getByText('Заявка отправлена', { exact: true })).toBeVisible();
+  await approveApplication(page, email);
+  await page.locator('[data-dialog-action="ok"]').click();
+  await expect(page.locator('#doLoginBtn')).toBeVisible();
+  await page.fill('#loginEmail', email);
+  await page.fill('#loginPassword', E2E_PASSWORD);
+  await page.click('#doLoginBtn');
 
   await expect(page.locator('#mainContent')).toBeVisible();
   await expect(page.locator('#directors.active')).toBeVisible();
   await expect(page.locator('#logoutBtn')).toBeVisible();
+}
+
+async function approveApplication(page, email) {
+  const request = page.context().request;
+  await request.get('/csrf-bootstrap');
+  const cookies = await page.context().cookies();
+  const csrf = cookies.find((cookie) => cookie.name === 'csrf');
+  expect(csrf).toBeTruthy();
+  const headers = { 'X-CSRF-Token': csrf.value };
+  const login = await request.post('/api/auth/login', {
+    headers,
+    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  });
+  expect(login.ok()).toBeTruthy();
+  const applications = await request.get('/api/admin/applications');
+  const body = await applications.json();
+  const application = body.applications.find((item) => item.email === email);
+  expect(application).toBeTruthy();
+  const approval = await request.put('/api/admin/applications/' + application.id, {
+    headers,
+    data: { status: 'approved' },
+  });
+  expect(approval.ok()).toBeTruthy();
+  await request.post('/api/auth/logout', { headers });
 }
 
 test.describe('UI buttons DB flows', () => {

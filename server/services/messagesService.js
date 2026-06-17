@@ -28,7 +28,9 @@ async function archiveExpiredMessages() {
 
 async function sendMessage(fromUserId, toUserId, text) {
   await archiveExpiredMessages();
-  const target = await db.prepare('SELECT id FROM users WHERE id = ?').get(toUserId);
+  const target = await db
+    .prepare("SELECT id FROM users WHERE id = ? AND (role = 'admin' OR approval_status = 'approved')")
+    .get(toUserId);
   if (!target) return { error: 'Пользователь не найден', status: 404 };
   if (toUserId === fromUserId) return { error: 'Нельзя отправить сообщение себе', status: 400 };
 

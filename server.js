@@ -9,8 +9,10 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const { validateConfig } = require('./server/config');
+const { authenticatedOrIpKey } = require('./server/rateLimitKey');
 const logger = require('./server/logger');
 const { db, pool } = require('./server/db');
+const { createRateLimitStore } = require('./server/redis-rate-limit-store');
 
 const config = validateConfig(process.env);
 
@@ -19,8 +21,10 @@ const { init: initWs, close: closeWs } = require('./server/ws');
 // Dev-only: generate ADMIN_PASSWORD in memory before DB seed creates admin.
 checkWeakAdminPassword();
 let server;
+let rateLimitStoreFactory = null;
 
-function createApp() {
+function createApp(options) {
+  options = options || {};
   const app = express();
   const allowedOrigins = config.ALLOWED_ORIGINS
     .split(',')
@@ -81,9 +85,12 @@ function createApp() {
 
   app.get('/ready', async (req, res) => {
     try {
-      const version = await db.prepare('SHOW server_version').get();
-      const users = await db.prepare('SELECT COUNT(*) AS c FROM users').get();
-      res.json({ status: 'ready', db: 'ok', postgresVersion: version.server_version, users: Number(users.c) });
+      await db.prepare('SELECT 1 AS ready').get();
+      res.json({
+        status: 'ready',
+        db: 'ok',
+        pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount },
+      });
     } catch (err) {
       logger.error('readiness.failed', { message: err.message });
       res.status(503).json({ status: 'not_ready', db: 'error' });
@@ -92,9 +99,16 @@ function createApp() {
 
   app.use(require('./server/middleware/csrf'));
 
+  const rateLimitFactory = options.rateLimitStoreFactory || null;
+  function buildRateLimitStore(prefix) {
+    if (!rateLimitFactory || typeof rateLimitFactory.create !== 'function') return undefined;
+    return rateLimitFactory.create(prefix);
+  }
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: config.NODE_ENV === 'test' ? 1000 : 200,
+    max: config.NODE_ENV === 'test' ? 1000 : config.API_RATE_LIMIT_MAX,
+    store: buildRateLimitStore('rl:api:'),
+    keyGenerator: authenticatedOrIpKey,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Слишком много запросов, попробуйте позже' },
@@ -104,6 +118,7 @@ function createApp() {
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: config.NODE_ENV === 'test' ? 1000 : 10,
+    store: buildRateLimitStore('rl:auth:'),
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Слишком много попыток входа, попробуйте через 15 минут' },
@@ -113,6 +128,7 @@ function createApp() {
   const passwordRecoveryLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
+    store: buildRateLimitStore('rl:pwd:'),
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Слишком много попыток восстановления пароля, попробуйте позже' },
@@ -122,6 +138,7 @@ function createApp() {
   const messagesSendLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 30,
+    store: buildRateLimitStore('rl:msg:'),
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Слишком много сообщений за короткое время, попробуйте позже' },
@@ -137,6 +154,7 @@ function createApp() {
   app.use('/api/push', require('./server/routes/push'));
   app.use('/api/admin', require('./server/routes/admin'));
   app.use('/api/messages', messagesSendLimiter, require('./server/routes/messages'));
+  app.use('/api/integrations/max', require('./server/routes/maxIntegration'));
   app.use('/api/docs', require('./server/routes/docs'));
 
   app.use(express.static(path.join(__dirname, 'public')));
@@ -161,7 +179,6 @@ function createApp() {
   return app;
 }
 
-const app = createApp();
 const PORT = config.PORT;
 const allowedOrigins = config.ALLOWED_ORIGINS
   .split(',')
@@ -181,8 +198,19 @@ async function startServer() {
     process.exit(1);
   }
 
-  server = http.createServer(app);
-  initWs(server);
+  rateLimitStoreFactory = await createRateLimitStore(config).catch((err) => {
+    logger.warn('rate_limit.redis_disabled', { message: err.message });
+    return null;
+  });
+  if (rateLimitStoreFactory) {
+    logger.info('rate_limit.redis_enabled');
+  } else {
+    logger.info('rate_limit.memory_store_enabled');
+  }
+  const runtimeApp = createApp({ rateLimitStoreFactory });
+
+  server = http.createServer(runtimeApp);
+  await initWs(server);
   server.listen(PORT, () => {
     logger.info('server.started', {
       port: PORT,
@@ -209,6 +237,14 @@ async function shutdown(signal) {
   } catch (err) {
     logger.warn('server.ws_close_failed', { message: err.message });
   }
+  if (rateLimitStoreFactory && typeof rateLimitStoreFactory.close === 'function') {
+    try {
+      await rateLimitStoreFactory.close();
+    } catch (_) {
+      logger.warn('server.rate_limit_store_close_failed');
+    }
+    rateLimitStoreFactory = null;
+  }
 
   server.close(async () => {
     try {
@@ -225,4 +261,4 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-module.exports = { app, createApp };
+module.exports = { createApp };

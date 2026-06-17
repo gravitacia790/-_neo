@@ -11,9 +11,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="/css/directors.css">
+    <link rel="stylesheet" href="/css/events.css">
+    <link rel="stylesheet" href="/css/calendar.css">
+    <link rel="stylesheet" href="/css/feedback.css">
 </head>
 <body>
-<div id="app" data-app-state="splash">
+<div id="app" data-app-state="intro">
+    <main class="intro-screen" id="introScreen" aria-labelledby="introTitle" aria-describedby="introStatus">
+        <div class="intro-mark">
+            <span class="intro-mark__ring" aria-hidden="true"></span>
+            <span class="intro-mark__letter">G</span>
+        </div>
+        <h1 class="intro-title" id="introTitle">&#1043;&#1088;&#1072;&#1074;&#1080;&#1090;&#1072;&#1094;&#1080;&#1103;</h1>
+        <p class="intro-status" id="introStatus">&#1055;&#1086;&#1076;&#1075;&#1086;&#1090;&#1072;&#1074;&#1083;&#1080;&#1074;&#1072;&#1077;&#1084; &#1087;&#1088;&#1086;&#1089;&#1090;&#1088;&#1072;&#1085;&#1089;&#1090;&#1074;&#1086;</p>
+        <div class="intro-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+    </main>
     <main class="splash-screen" id="splashScreen" aria-labelledby="splashTitle">
         <section class="splash-content" aria-describedby="splashTagline splashStatsStatus">
             <header class="gravity-wordmark">
@@ -149,36 +163,6 @@
     </div>
 </div>
 
-<script src="/js/api.js"></script>
-<script src="/js/core-state.js"></script>
-<script src="/js/shell-dom.js"></script>
-<script src="/js/overlay.js"></script>
-<script src="/js/utils.js"></script>
-<script src="/js/rating.js"></script>
-<script src="/js/events-ui.js"></script>
-<script src="/js/events-actions.js"></script>
-<script src="/js/events.js"></script>
-<script src="/js/directors-ui.js"></script>
-<script src="/js/directors-detail.js"></script>
-<script src="/js/directors-actions.js"></script>
-<script src="/js/directors.js"></script>
-<script src="/js/profile-ui.js"></script>
-<script src="/js/profile-forms.js"></script>
-<script src="/js/profile-loader.js"></script>
-<script src="/js/profile.js"></script>
-<script src="/js/admin.js"></script>
-<script src="/js/auth.js"></script>
-<script src="/js/views-profile.js"></script>
-<script src="/js/views-school.js"></script>
-<script src="/js/views-events.js"></script>
-<script src="/js/views-directors.js"></script>
-<script src="/js/views-expert.js"></script>
-<script src="/js/views.js"></script>
-<script src="/js/tabs.js"></script>
-<script src="/js/extras.js"></script>
-<script src="/js/ws.js"></script>
-<script src="/js/notifications.js"></script>
-<script src="/js/push-client.js"></script>
-<script src="/js/app.js"></script>
+<script src="/js/app.bundle.js" defer></script>
 </body>
 </html>

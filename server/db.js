@@ -72,7 +72,13 @@ function createPool() {
   if (!databaseUrl) {
     throw new Error('[db] DATABASE_URL is required for PostgreSQL');
   }
-  return new Pool({ connectionString: databaseUrl });
+  return new Pool({
+    connectionString: databaseUrl,
+    max: Number(process.env.DB_POOL_MAX) || 20,
+    idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS) || 30000,
+    connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS) || 5000,
+    allowExitOnIdle: false,
+  });
 }
 
 const DB_SINGLETON_KEY = '__gravitacia_pg_singleton__';
@@ -99,7 +105,11 @@ async function ensureAdmin() {
   if (!existing) {
     const hash = bcrypt.hashSync(adminPassword, 10);
     const info = await db
-      .prepare(`INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, 'admin') RETURNING id`)
+      .prepare(
+        `INSERT INTO users (email, password_hash, name, role, approval_status, approved_at)
+         VALUES (?, ?, ?, 'admin', 'approved', NOW())
+         RETURNING id`
+      )
       .run(adminEmail, hash, 'Администратор');
     await db.prepare('INSERT INTO ratings (user_id, total_score, is_public) VALUES (?, 0, 0)').run(info.lastInsertRowid);
     logger.info('db.admin_created', { email: adminEmail });
@@ -276,7 +286,9 @@ async function seedDemoDirectors() {
   let insertedCount = 0;
   const tx = db.transaction(async (trx) => {
     const insertUser = trx.prepare(
-      `INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director') RETURNING id`
+      `INSERT INTO users (email, password_hash, name, phone, role, approval_status, approved_at)
+       VALUES (?, ?, ?, ?, 'director', 'approved', NOW())
+       RETURNING id`
     );
     const insertProfile = trx.prepare(
       `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
