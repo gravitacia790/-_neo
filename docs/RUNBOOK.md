@@ -54,6 +54,8 @@ ALLOWED_ORIGINS=https://example.ru
 VAPID_SUBJECT=mailto:admin@example.ru
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
+REDIS_URL=redis://localhost:6379
+WS_REDIS_CHANNEL=ws:broadcast
 ```
 
 Production startup fails intentionally when required secrets are missing or weak.
@@ -137,8 +139,11 @@ Expected response:
 {
   "status": "ready",
   "db": "ok",
-  "postgresVersion": "...",
-  "users": 5
+  "pool": {
+    "total": 5,
+    "idle": 4,
+    "waiting": 0
+  }
 }
 ```
 
@@ -227,10 +232,25 @@ Profile photos do not upload:
 - the process cannot write to `public/uploads/`;
 - the hosting platform does not preserve local files.
 
-Password reset:
+Password reset (self-service, OTP):
 
-- reset tokens are intentionally not exposed in production;
-- a real email delivery flow is required before enabling self-service password reset in production.
+- `POST /api/auth/forgot-password` issues a 6-digit code, stored only as a SHA-256 hash with a 10-minute TTL; previous active codes are invalidated;
+- the code is delivered by email via SMTP (`server/services/notifier.js`). Configure `SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/`SMTP_PASS`/`MAIL_FROM` (see `.env.example`);
+- after configuring SMTP, send a live check with `npm run mail:test -- recipient@example.com`; the command prints only whether settings are present and does not echo the password;
+- if SMTP is not configured, email is silently skipped — outside production the code is returned in the API response for dev/test only (never in production);
+- `POST /api/auth/reset-password` takes `{ email, code, password }`; max 5 attempts per code, then it is invalidated;
+- responses never reveal whether an account exists (anti-enumeration);
+- the `forgot-password`/`reset-password` endpoints are rate-limited (5 / 15 min);
+- if the user has linked MAX (see below), the code is also delivered to MAX.
+
+MAX messenger integration (account linking + code/notification delivery):
+
+- enable by setting `MAX_BOT_TOKEN`, `MAX_BOT_NAME`, `MAX_WEBHOOK_SECRET` (and optionally `MAX_API_BASE`, default `https://platform-api.max.ru`);
+- create the bot via `@MasterBot` in MAX; the token is sent in the `Authorization` header (no `Bearer` prefix);
+- subscribe the webhook: `POST {MAX_API_BASE}/subscriptions` with your public URL `https://<host>/api/integrations/max/webhook?secret=<MAX_WEBHOOK_SECRET>` and `update_types: ["bot_started"]` (HTTPS with a trusted CA is required by MAX);
+- linking flow: user clicks "Привязать MAX" in profile → `POST /api/integrations/max/link` returns a deep link `https://max.ru/<bot>?start=<nonce>` (nonce TTL 15 min) → user opens the bot → MAX calls the webhook with `bot_started` + payload → `max_user_id` is stored in `profiles`; one MAX account maps to one profile;
+- endpoints: `GET /api/integrations/max/status`, `POST /api/integrations/max/link`, `POST /api/integrations/max/unlink` (auth required); `POST /api/integrations/max/webhook` (public, secret-protected, CSRF-exempt);
+- without `MAX_BOT_TOKEN` the integration is off and the profile linking block is hidden; message sending fails soft (logged, never throws).
 
 ## 11. Production Checklist
 
@@ -246,3 +266,10 @@ Password reset:
 - `npm run lint` passes
 - `npm test` passes
 - `npm run test:e2e` passes
+- Redis configured and reachable (`REDIS_URL`)
+- WS multi-instance delivery verified (Pub/Sub)
+- HTTP load smoke completed (`npm run load:smoke:http -- <url> 1000 50`)
+
+Extended release-readiness checklist for 1500 users:
+
+- [`docs/GO_LIVE_1500.md`](GO_LIVE_1500.md)

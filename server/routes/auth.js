@@ -3,7 +3,7 @@ const { z } = require('zod');
 const authRequired = require('../middleware/authRequired');
 const { safe } = require('../middleware/safe');
 const { getAuthCookieOptions } = require('../config');
-const { createResetToken, loginUser, registerDirector, resetPassword } = require('../services/authService');
+const { createResetCode, loginUser, registerDirector, resetPasswordWithCode } = require('../services/authService');
 
 const router = express.Router();
 
@@ -34,7 +34,11 @@ const forgotPasswordSchema = z.object({
 });
 
 const resetPasswordSchema = z.object({
-  token: z.string().min(1).max(500).transform((t) => t.trim()),
+  email: z
+    .string()
+    .email()
+    .transform((e) => e.toLowerCase().trim()),
+  code: z.string().regex(/^\d{6}$/, 'Код состоит из 6 цифр'),
   password: z.string().min(6).max(200),
 });
 
@@ -65,9 +69,7 @@ router.post(
 
     const result = await registerDirector({ name, email, phone, password });
     if (result.error) return res.status(result.status).json({ error: result.error });
-    const { user, token } = result;
-    setTokenCookie(res, token);
-    res.json({ user, token: process.env.NODE_ENV === 'production' ? undefined : token });
+    res.status(202).json(result);
   })
 );
 
@@ -99,8 +101,7 @@ router.post(
   safe('auth')(async (req, res) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Некорректные данные' });
-    const result = await createResetToken(parsed.data.email);
-    if (result && result.error && result.status) return res.status(result.status).json({ error: result.error });
+    const result = await createResetCode(parsed.data.email);
     res.json(result);
   })
 );
@@ -109,8 +110,8 @@ router.post(
   '/reset-password',
   safe('auth')(async (req, res) => {
     const parsed = resetPasswordSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Неверный токен или пароль (мин. 6 символов)' });
-    const result = await resetPassword(parsed.data.token, parsed.data.password);
+    if (!parsed.success) return res.status(400).json({ error: 'Неверный код или пароль (мин. 6 символов)' });
+    const result = await resetPasswordWithCode(parsed.data.email, parsed.data.code, parsed.data.password);
     if (result.error) return res.status(result.status).json({ error: result.error });
     res.json(result);
   })

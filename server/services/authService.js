@@ -1,36 +1,83 @@
 const crypto = require('crypto');
 const { db } = require('../db');
+const logger = require('../logger');
 const { hashPassword, verifyPassword, signToken } = require('../auth');
 const { ensureRatingRow } = require('../rating');
-const { reindexDirector } = require('./directorsService');
+const { sendPasswordResetCode } = require('./notifier');
+const { insertNotificationsForUsers, notifyUser } = require('../ws');
+const { sendPushToMany } = require('../push');
 
-const RESET_TOKEN_EXPIRY_HOURS = 1;
+const RESET_CODE_EXPIRY_MINUTES = 10;
+const MAX_RESET_CODE_ATTEMPTS = 5;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCK_MINUTES = 15;
 
+function generateOtpCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(String(code)).digest('hex');
+}
+
 function getSafeUserById(userId) {
-  return db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(userId);
+  return db.prepare('SELECT id, email, name, role, approval_status FROM users WHERE id = ?').get(userId);
+}
+
+async function notifyAdminsAboutRegistration(user) {
+  try {
+    const admins = await db.prepare("SELECT id FROM users WHERE role = 'admin'").all();
+    const adminIds = admins.map((admin) => admin.id);
+    if (!adminIds.length) return;
+    const title = 'Новая заявка на регистрацию';
+    const message = `${user.name} (${user.email}) ожидает подтверждения`;
+    await insertNotificationsForUsers(adminIds, 'registration_pending', title, message);
+    adminIds.forEach((adminId) => {
+      notifyUser(adminId, 'registration_pending', {
+        title,
+        message,
+        applicantId: user.id,
+      });
+    });
+    await sendPushToMany(adminIds, {
+      title,
+      body: message,
+      url: '/?tab=admin',
+    });
+  } catch (err) {
+    logger.warn('auth.registration_admin_notification_failed', { message: err.message });
+  }
 }
 
 async function registerDirector(data) {
-  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(data.email);
+  const existing = await db.prepare('SELECT id, approval_status FROM users WHERE email = ?').get(data.email);
   if (existing) return { error: 'Пользователь с таким email уже существует', status: 409 };
 
   const hash = hashPassword(data.password);
   const info = await db
-    .prepare(`INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'director') RETURNING id`)
+    .prepare(
+      `INSERT INTO users (email, password_hash, name, phone, role, approval_status)
+       VALUES (?, ?, ?, ?, 'director', 'pending')
+       RETURNING id`
+    )
     .run(data.email, hash, data.name, data.phone || '');
   await ensureRatingRow(info.lastInsertRowid);
-  await reindexDirector(info.lastInsertRowid);
 
   const user = await getSafeUserById(info.lastInsertRowid);
-  return { user, token: signToken(user) };
+  await notifyAdminsAboutRegistration(user);
+  return {
+    user,
+    pendingApproval: true,
+    message: 'Заявка отправлена администратору. Вход станет доступен после подтверждения.',
+  };
 }
 
 async function loginUser(data) {
   const user = await db
     .prepare(
-      'SELECT id, email, name, role, password_hash, failed_login_attempts, locked_until FROM users WHERE email = ?'
+      `SELECT id, email, name, role, password_hash, failed_login_attempts, locked_until, approval_status
+       FROM users
+       WHERE email = ?`
     )
     .get(data.email);
   if (!user) return { error: 'Неверный email или пароль', status: 401 };
@@ -53,50 +100,89 @@ async function loginUser(data) {
     };
   }
 
+  if (user.role !== 'admin' && user.approval_status !== 'approved') {
+    if (user.approval_status === 'rejected') {
+      return { error: 'Заявка на регистрацию отклонена. Обратитесь к администратору.', status: 403 };
+    }
+    return { error: 'Заявка ожидает подтверждения администратора.', status: 403 };
+  }
+
   await db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(user.id);
   const safeUser = { id: user.id, email: user.email, name: user.name, role: user.role };
   return { user: safeUser, token: signToken(safeUser) };
 }
 
-async function createResetToken(email) {
-  if (process.env.NODE_ENV === 'production') {
-    return { ok: false, status: 503, error: 'Сброс пароля временно недоступен. Обратитесь к администратору.' };
-  }
-  const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-  if (!user) return { ok: true, message: 'Если email найден, ссылка для сброса отправлена' };
+// Универсальный ответ — не раскрываем, существует ли аккаунт (анти-энумерация).
+const RESET_GENERIC_MESSAGE = 'Если аккаунт с таким email существует, код отправлен';
 
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 3600000).toISOString();
+async function createResetCode(email) {
+  const user = await db.prepare('SELECT id, email FROM users WHERE email = ?').get(email);
+  const payload = { ok: true, message: RESET_GENERIC_MESSAGE };
+  if (!user) return payload;
+
+  // Гасим прежние активные коды этого пользователя — действителен только последний.
+  await db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
+
+  const code = generateOtpCode();
+  const token = crypto.randomBytes(32).toString('hex'); // непрозрачный id записи
+  const expiresAt = new Date(Date.now() + RESET_CODE_EXPIRY_MINUTES * 60000).toISOString();
   await db
-    .prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)')
-    .run(user.id, token, expiresAt);
+    .prepare(
+      'INSERT INTO password_reset_tokens (user_id, token, code_hash, expires_at, channel) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run(user.id, token, hashCode(code), expiresAt, 'email');
 
-  const payload = {
-    ok: true,
-    message: 'Ссылка для сброса отправлена на email',
-    expiresAt,
-  };
-  if (process.env.NODE_ENV !== 'production') payload.token = token;
+  const maxRow = await db.prepare('SELECT max_user_id FROM profiles WHERE user_id = ?').get(user.id);
+  const maxUserId = maxRow && maxRow.max_user_id ? maxRow.max_user_id : null;
+  try {
+    await sendPasswordResetCode({ email: user.email, maxUserId }, code, RESET_CODE_EXPIRY_MINUTES);
+  } catch (err) {
+    logger.warn('auth.reset_code_send_failed', { message: err.message });
+  }
+
+  // Вне production отдаём код в ответе, чтобы dev/тесты работали без SMTP.
+  if (process.env.NODE_ENV !== 'production') payload.code = code;
   return payload;
 }
 
-async function resetPassword(token, password) {
+async function resetPasswordWithCode(email, code, password) {
+  const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (!user) return { error: 'Неверный код или email', status: 400 };
+
   const row = await db
     .prepare(
-      `SELECT id, user_id
+      `SELECT id, code_hash, attempts
        FROM password_reset_tokens
-       WHERE token = ?
+       WHERE user_id = ?
          AND used = 0
-         AND expires_at > NOW()`
+         AND code_hash IS NOT NULL
+         AND expires_at > NOW()
+       ORDER BY created_at DESC
+       LIMIT 1`
     )
-    .get(token);
-  if (!row) return { error: 'Токен недействителен или истёк', status: 400 };
+    .get(user.id);
+  if (!row) return { error: 'Код недействителен или истёк', status: 400 };
+
+  if (row.attempts >= MAX_RESET_CODE_ATTEMPTS) {
+    await db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
+    return { error: 'Превышено число попыток. Запросите новый код.', status: 429 };
+  }
+
+  const provided = hashCode(code);
+  const match =
+    row.code_hash &&
+    row.code_hash.length === provided.length &&
+    crypto.timingSafeEqual(Buffer.from(row.code_hash), Buffer.from(provided));
+  if (!match) {
+    await db.prepare('UPDATE password_reset_tokens SET attempts = attempts + 1 WHERE id = ?').run(row.id);
+    return { error: 'Неверный код', status: 400 };
+  }
 
   const hash = hashPassword(password);
   const tx = db.transaction(async (trx) => {
     await trx
       .prepare('UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL WHERE id = ?')
-      .run(hash, row.user_id);
+      .run(hash, user.id);
     await trx.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
   });
   await tx();
@@ -104,9 +190,9 @@ async function resetPassword(token, password) {
 }
 
 module.exports = {
-  createResetToken,
+  createResetCode,
   getSafeUserById,
   loginUser,
   registerDirector,
-  resetPassword,
+  resetPasswordWithCode,
 };

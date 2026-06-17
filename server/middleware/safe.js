@@ -13,6 +13,7 @@ const ROUTE_PREFIXES = {
   docs: '[docs]',
   messages: '[messages]',
   webpush: '[webpush]',
+  max: '[max]',
 };
 
 function safe(prefix) {

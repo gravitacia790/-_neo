@@ -24,8 +24,12 @@
 npm ci
 copy .env.example .env   # Windows
 # Задайте DATABASE_URL, JWT_SECRET (мин. 32 символа) и ADMIN_* в .env
-npm start
+npm run dev   # собирает фронтенд (Vite) и запускает сервер
 ```
+
+> Фронтенд — ES-модули в `public/src/`, которые Vite собирает в `public/js/app.bundle.js`
+> (бандл в git не хранится). `npm run dev` делает сборку и запуск; для продакшена сборка
+> выполняется отдельно: `npm run build`, затем `npm start`. Исходники правьте только в `public/src/`.
 
 Откройте http://localhost:3000
 
@@ -49,7 +53,8 @@ ADMIN_PASSWORD=<сильный пароль 10+ символов>
 ```
 
 ```bash
-npm ci --omit=dev
+npm ci
+npm run build   # сборка фронтенд-бандла (нужны devDependencies)
 npm start
 ```
 
@@ -119,6 +124,7 @@ npm test
 npm run lint
 npm run format:check
 npm run test:e2e
+npm run load:smoke:http -- http://127.0.0.1:3000 200 20
 ```
 
 Браузерные тесты запускают отдельный сервер на порту `3100` с временной базой `pg-mem`. Они не используют development или production PostgreSQL.
@@ -134,7 +140,10 @@ DS-neo/
 │   ├── routes/       (auth, profile, directors, events, …)
 │   ├── services/
 │   └── migrations/postgres/   (up/down SQL-миграции)
-├── public/           (SPA + js/api.js)
+├── public/
+│   ├── src/          (ES-модули фронтенда — исходники)
+│   ├── js/app.bundle.js  (сборка Vite, gitignored)
+│   ├── css/, index.html, sw.js
 ├── test/             (API и интеграционные тесты)
 ├── e2e/              (браузерные сценарии)
 ├── docs/             (эксплуатация и техническое описание)
@@ -142,6 +151,7 @@ DS-neo/
 ```
 
 Подробности эксплуатации и развёртывания находятся в [`docs/RUNBOOK.md`](docs/RUNBOOK.md), актуальное описание требований — в [`docs/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ.md`](docs/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ.md).
+Release-checklist для запуска на 1500 пользователей: [`docs/GO_LIVE_1500.md`](docs/GO_LIVE_1500.md).
 
 ## API (кратко)
 
@@ -165,6 +175,9 @@ DS-neo/
 ## Безопасность
 
 - Пароли: bcrypt (10 раундов), блокировка после 5 неудачных входов.
+- Восстановление пароля: 6-значный OTP-код на email (SMTP), хранится только в виде sha256-хэша, TTL 10 минут, до 5 попыток, без раскрытия существования аккаунта. SMTP настраивается через `SMTP_*` в `.env`.
+- Регистрация директора требует решения администратора: администраторы получают внутреннее и push-уведомление о новой заявке, директор получает письмо после одобрения или отклонения.
+- Интеграция с MAX: привязка аккаунта через deep-link/бота (`MAX_*` в `.env`); коды и уведомления могут доставляться в MAX. Webhook защищён секретом и исключён из CSRF.
 - JWT в **httpOnly** cookie, `SameSite=Strict` в production.
 - CSRF: double-submit (`csrf` cookie + `X-CSRF-Token`).
 - WebSocket: без валидного токена соединение закрывается (`1008`).

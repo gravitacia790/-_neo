@@ -5,7 +5,7 @@ const BASE_FROM_SQL = `
   LEFT JOIN profiles p ON p.user_id = u.id
   LEFT JOIN schools s ON s.user_id = u.id
   LEFT JOIN ratings r ON r.user_id = u.id
-  WHERE u.role = 'director'
+  WHERE u.role = 'director' AND u.approval_status = 'approved'
 `;
 
 const SELECT_SQL = `
@@ -37,7 +37,7 @@ async function buildDirectorSearchText(userId) {
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      LEFT JOIN schools s ON s.user_id = u.id
-     WHERE u.id = ? AND u.role = 'director'`
+     WHERE u.id = ? AND u.role = 'director' AND u.approval_status = 'approved'`
     )
     .get(userId);
   if (!row) return null;
@@ -260,7 +260,7 @@ async function listFavorites(viewer, query) {
        LEFT JOIN profiles p ON p.user_id = u.id
        LEFT JOIN schools s ON s.user_id = u.id
        LEFT JOIN ratings r ON r.user_id = u.id
-       WHERE f.user_id = ? AND u.role = 'director'
+        WHERE f.user_id = ? AND u.role = 'director' AND u.approval_status = 'approved'
        ORDER BY ` + orderBy
     )
     .all(viewer.id);
@@ -294,7 +294,7 @@ async function toggleFavorite(viewer, directorId) {
   if (!Number.isFinite(id)) return { error: 'Некорректный id директора', status: 400 };
   if (viewer.id === id) return { error: 'Нельзя добавить себя в избранное', status: 400 };
   const existsDirector = await db
-    .prepare("SELECT id FROM users WHERE id = ? AND role = 'director'")
+    .prepare("SELECT id FROM users WHERE id = ? AND role = 'director' AND approval_status = 'approved'")
     .get(id);
   if (!existsDirector) return { error: 'Директор не найден', status: 404 };
   const existsFav = await db

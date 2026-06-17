@@ -5,7 +5,9 @@ const authRequired = require('../middleware/authRequired');
 const adminRequired = require('../middleware/adminRequired');
 const { safe } = require('../middleware/safe');
 const { sendPushToMany } = require('../push');
-const { notifyUser } = require('../ws');
+const { insertNotification, insertNotificationsForUsers, notifyUser } = require('../ws');
+const { reindexDirector } = require('../services/directorsService');
+const { sendRegistrationDecision } = require('../services/notifier');
 
 const router = express.Router();
 
@@ -26,6 +28,10 @@ const announcementSchema = z.object({
   message: z.string().min(1).max(2000),
   audience: z.string().min(1).max(120).optional().default('all'),
 });
+const approvalSchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+});
+const userIdSchema = z.coerce.number().int().positive();
 
 function serializeMaterial(row) {
   return {
@@ -45,23 +51,111 @@ function serializeMaterial(row) {
 
 async function getAnnouncementRecipients(audience) {
   if (audience === 'directors') {
-    return db.prepare("SELECT id FROM users WHERE role = 'director'").all();
+    return db.prepare("SELECT id FROM users WHERE role = 'director' AND approval_status = 'approved'").all();
   }
   if (audience && audience.indexOf('event:') === 0) {
     const eventId = Number(audience.slice(6));
     if (!Number.isFinite(eventId)) return [];
     return db
-      .prepare('SELECT DISTINCT registered_by AS id FROM event_registrations WHERE event_id = ?')
+      .prepare(
+        `SELECT DISTINCT er.registered_by AS id
+         FROM event_registrations er
+         JOIN users u ON u.id = er.registered_by
+         WHERE er.event_id = ?
+           AND (u.role = 'admin' OR u.approval_status = 'approved')`
+      )
       .all(eventId);
   }
   if (audience && audience.indexOf('category:') === 0) {
     const category = audience.slice(9);
     return db
-      .prepare('SELECT DISTINCT registered_by AS id FROM extra_registrations WHERE category = ?')
+      .prepare(
+        `SELECT DISTINCT er.registered_by AS id
+         FROM extra_registrations er
+         JOIN users u ON u.id = er.registered_by
+         WHERE er.category = ?
+           AND (u.role = 'admin' OR u.approval_status = 'approved')`
+      )
       .all(category);
   }
-  return db.prepare('SELECT id FROM users').all();
+  return db.prepare("SELECT id FROM users WHERE role = 'admin' OR approval_status = 'approved'").all();
 }
+
+router.get(
+  '/applications',
+  safe('admin')(async (req, res) => {
+    const rows = await db
+      .prepare(
+        `SELECT id, name, email, phone, approval_status, created_at
+         FROM users
+         WHERE role = 'director' AND approval_status IN ('pending', 'rejected')
+         ORDER BY CASE WHEN approval_status = 'pending' THEN 0 ELSE 1 END, created_at DESC`
+      )
+      .all();
+    res.json({
+      applications: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone || '',
+        status: row.approval_status,
+        createdAt: row.created_at,
+      })),
+    });
+  })
+);
+
+router.put(
+  '/applications/:id',
+  safe('admin')(async (req, res) => {
+    const parsedId = userIdSchema.safeParse(req.params.id);
+    const parsed = approvalSchema.safeParse(req.body);
+    if (!parsedId.success || !parsed.success) {
+      return res.status(400).json({ error: 'Некорректные данные заявки' });
+    }
+    const user = await db
+      .prepare(
+        `SELECT id, name, email, role
+         FROM users
+         WHERE id = ?
+           AND role = 'director'
+           AND approval_status IN ('pending', 'rejected')`
+      )
+      .get(parsedId.data);
+    if (!user) return res.status(404).json({ error: 'Заявка не найдена' });
+
+    await db
+      .prepare(
+        `UPDATE users
+         SET approval_status = ?, approved_at = ?, approved_by = ?
+         WHERE id = ?`
+      )
+      .run(
+        parsed.data.status,
+        parsed.data.status === 'approved' ? new Date().toISOString() : null,
+        req.user.id,
+        user.id
+    );
+    if (parsed.data.status === 'approved') {
+      await reindexDirector(user.id);
+    } else {
+      await db.prepare('DELETE FROM director_search WHERE user_id = ?').run(user.id);
+    }
+    const approved = parsed.data.status === 'approved';
+    const notificationTitle = approved ? 'Регистрация подтверждена' : 'Заявка отклонена';
+    const notificationMessage = approved
+      ? 'Администратор подтвердил вашу регистрацию. Теперь вы можете войти в приложение.'
+      : 'Администратор отклонил вашу заявку. Для уточнения причины обратитесь к администратору проекта.';
+    await insertNotification(user.id, 'registration_decision', notificationTitle, notificationMessage);
+    notifyUser(user.id, 'registration_decision', {
+      title: notificationTitle,
+      message: notificationMessage,
+      status: parsed.data.status,
+    });
+    await sendRegistrationDecision(user, parsed.data.status);
+    res.json({ ok: true, status: parsed.data.status });
+  })
+);
 
 router.get(
   '/users',
@@ -74,7 +168,7 @@ router.get(
            COALESCE(r.is_public, 0) AS is_public
     FROM users u
     LEFT JOIN ratings r ON r.user_id = u.id
-    WHERE u.role != 'admin'
+    WHERE u.role != 'admin' AND u.approval_status = 'approved'
     ORDER BY total_score DESC, u.name
   `
       )
@@ -116,7 +210,12 @@ router.get(
 router.get(
   '/overview',
   safe('admin')(async (req, res) => {
-    const directors = await db.prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director'").get();
+    const directors = await db
+      .prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director' AND approval_status = 'approved'")
+      .get();
+    const pendingApplications = await db
+      .prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director' AND approval_status = 'pending'")
+      .get();
     const events = await db.prepare("SELECT COUNT(*) AS c FROM events WHERE deleted_at IS NULL AND status = 'published'").get();
     const eventRegs = await db.prepare('SELECT COUNT(*) AS c FROM event_registrations').get();
     const extraRegs = await db.prepare('SELECT COUNT(*) AS c FROM extra_registrations').get();
@@ -151,6 +250,7 @@ router.get(
     res.json({
       overview: {
         directors: Number(directors.c),
+        pendingApplications: Number(pendingApplications.c),
         events: Number(events.c),
         registrations: Number(eventRegs.c) + Number(extraRegs.c),
         registrationsLast7Days: Number(eventRegs7.c) + Number(extraRegs7.c),
@@ -441,10 +541,8 @@ router.post(
       )
       .run(data.title, data.message, data.audience, recipientIds.length, req.user.id);
 
+    await insertNotificationsForUsers(recipientIds, 'admin_announcement', data.title, data.message);
     for (const userId of recipientIds) {
-      await db
-        .prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)')
-        .run(userId, 'admin_announcement', data.title, data.message);
       notifyUser(userId, 'admin_announcement', {
         announcementId: info.lastInsertRowid,
         title: data.title,

@@ -2,32 +2,8 @@ const js = require('@eslint/js');
 const globals = require('globals');
 const prettier = require('eslint-config-prettier');
 
-const frontendGlobals = [
-  'API', 'APPSTATE', 'escapeHtml', 'escapeAttr', 'notify', 'showModal', 'confirmDialog', 'feedbackDialog',
-  'getCurrentUserEmail', 'getCurrentUserName', 'isAdmin',
-  'getCurrentDirectorName', 'getCurrentSchoolName',
-  'setMyProfileCache', 'getMyProfileCache', 'getMySchoolCache',
-  'directorsCache', 'mentorsCache', '__myProfile', '__mySchool',
-  'showLoginModal', 'showRegisterModal', 'showForgotPasswordModal', 'showResetPasswordModal', 'logout', 'showMainApp',
-  'initTabs', 'initPWA',
-  'renderDirectors', 'renderMentors', 'renderEvents',
-  'renderAdminPanel', 'renderGL', 'renderInternship', 'renderCalendar',
-  'loadMyRating', 'setRatingPublic', 'updateProfileRatingDisplay',
-  'addStrength', 'addSkill', 'saveProfile', 'saveSchool',
-  'loadUserDataIntoForms', 'bindCreateEvent', 'bindDirectorSearch',
-  'showDirectorDetail', 'promptAndRegister', 'pendingPhotoFile',
-  'currentSearchTerm', '__currentPage', '__totalPages', '__searchTimer',
-  'WS', 'NOTIF',
-  'openMsgDropdown', 'showMessageModal',
-  'renderStaticViews', 'initStaticViewBindings', 'initApp',
-  'renderProfileView', 'renderSchoolView', 'renderEventsView', 'renderDirectorsView', 'renderMentorsView', 'renderExpertView',
-  'clearFormErrors', 'markFieldInvalid', 'showFormStatus', 'setButtonBusy', 'collectFormData', 'validateProfileForm', 'validateSchoolForm', 'initPhotoUpload'
-  , 'renderEventsState', 'buildEventCardHtml', 'bindEventListActions', 'openRegistrationModal',
-  'renderDirectorCard', 'renderDirectorsState', 'bindDirectorActions', 'getDirectorsCache', 'normalizeMaxLink', 'getMaterialTypeLabel'
-];
-
 module.exports = [
-  { ignores: ['node_modules/', 'docs/', 'public/uploads/'] },
+  { ignores: ['node_modules/', 'docs/', 'public/uploads/', 'public/js/'] },
   js.configs.recommended,
   prettier,
   // Конфиг ESLint
@@ -43,7 +19,7 @@ module.exports = [
   },
   // Бэкенд + скрипты
   {
-    files: ['server/**/*.js', 'server.js', 'scripts/**/*.js'],
+    files: ['server/**/*.js', 'server.js', 'scripts/**/*.js', 'vite.config.js'],
     languageOptions: { globals: globals.node, sourceType: 'commonjs' },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
@@ -51,17 +27,18 @@ module.exports = [
       'no-console': 'off'
     }
   },
-  // Фронтенд (SPA с глобальными функциями)
+  // Фронтенд ES-модули (public/src) — настоящие импорты, ловим забытые связи
   {
-    files: ['public/js/**/*.js'],
+    files: ['public/src/**/*.js'],
     languageOptions: {
-      globals: { ...globals.browser, ...Object.fromEntries(frontendGlobals.map(g => [g, 'writable'])) },
-      sourceType: 'script'
+      globals: { ...globals.browser },
+      sourceType: 'module',
+      ecmaVersion: 2022,
     },
     rules: {
       'no-unused-vars': 'off',
       'no-undef': 'error',
-      'no-redeclare': 'off',
+      'no-redeclare': 'error',
       'no-var': 'off',
       'prefer-const': 'off',
       'no-console': 'off'

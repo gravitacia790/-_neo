@@ -7,8 +7,13 @@ module.exports = async function authRequired(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Требуется авторизация' });
   const payload = verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Недействительный токен' });
-  const user = await db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(payload.id);
+  const user = await db
+    .prepare('SELECT id, email, name, role, approval_status FROM users WHERE id = ?')
+    .get(payload.id);
   if (!user) return res.status(401).json({ error: 'Пользователь не найден' });
+  if (user.role !== 'admin' && user.approval_status !== 'approved') {
+    return res.status(403).json({ error: 'Доступ к аккаунту ещё не подтверждён администратором' });
+  }
   req.user = user;
   next();
 };

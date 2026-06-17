@@ -5,7 +5,7 @@ services:
     plan: free
     region: frankfurt
     autoDeploy: true
-    buildCommand: npm ci
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:

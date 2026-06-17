@@ -1,0 +1,179 @@
+/* Календарь мероприятий */
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.cal-nav {
+  background: var(--white);
+  border: 1.5px solid var(--border-light);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 40px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: Manrope, sans-serif;
+  transition: all 0.2s;
+}
+.cal-nav:hover {
+  background: var(--crimson-mist);
+  border-color: var(--crimson);
+  color: var(--crimson);
+}
+.cal-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--charcoal);
+}
+.cal-weekdays,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-weekdays {
+  margin-bottom: 8px;
+}
+.cal-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 0;
+}
+.cal-day {
+  position: relative;
+  text-align: center;
+  padding: 8px 0;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  background: transparent;
+  cursor: default;
+  transition: background 0.2s, color 0.2s;
+}
+.cal-day.cal-has-events {
+  cursor: pointer;
+}
+.cal-day.cal-today {
+  background: var(--crimson);
+  color: #fff;
+  font-weight: 700;
+}
+.cal-day:hover:not(.cal-today) {
+  background: var(--crimson-mist);
+}
+.cal-day.cal-today:hover {
+  background: var(--crimson-dark);
+}
+.cal-dots {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+}
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--crimson);
+}
+.cal-day.cal-today .cal-dot {
+  background: rgba(255, 255, 255, 0.8);
+}
+/* Анимация дней с событиями */
+.cal-day.cal-has-events {
+  transition:
+    transform var(--motion-fast),
+    background var(--motion-fast),
+    color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+.cal-day.cal-has-events:hover {
+  transform: translateY(-1px);
+}
+.cal-day.cal-has-events:active {
+  transform: scale(0.94);
+  animation: dayPulse 0.42s ease-out;
+}
+
+/* Постоянные / периодические события */
+.cal-fuzzy {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-faint);
+}
+.cal-fuzzy-card {
+  background: var(--white);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-left: 3px solid var(--crimson);
+  box-shadow: var(--shadow-sm);
+}
+.cal-fuzzy-card h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: var(--charcoal);
+}
+.cal-fuzzy-card p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.cal-fuzzy-card p:last-child {
+  margin-bottom: 0;
+}
+
+/* Модалка событий выбранного дня */
+.cal-detail-card {
+  background: var(--cream);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-faint);
+}
+.cal-detail-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--charcoal);
+  margin-bottom: 4px;
+}
+.cal-detail-date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.cal-detail-creator {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.cal-detail-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.cal-detail-count {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.cal-detail-materials {
+  margin-top: 10px;
+}
+.cal-detail-btn {
+  margin-top: 12px;
+  padding: 9px;
+}

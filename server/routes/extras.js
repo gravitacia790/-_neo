@@ -140,7 +140,11 @@ router.post(
     const notifTitle = titleMap[cat] || 'Новая регистрация';
     const notifMessage = `${employeeName} зарегистрирован(а) на "${item.title}"`;
     await broadcastAndInsert(eventType, notifTitle, notifMessage, req.user.id);
-    const recipients = await db.prepare('SELECT id FROM users WHERE id != ?').all(req.user.id);
+    const recipients = await db
+      .prepare(
+        "SELECT id FROM users WHERE id != ? AND (role = 'admin' OR approval_status = 'approved')"
+      )
+      .all(req.user.id);
     await sendPushToMany(
       recipients.map((r) => r.id),
       {

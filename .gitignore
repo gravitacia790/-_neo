@@ -13,6 +13,10 @@ data/
 public/uploads/*
 !public/uploads/.gitkeep
 
+# Собранный фронтенд-бандл (генерируется vite build)
+public/js/app.bundle.js
+public/js/app.bundle.js.map
+
 # Сгенерированные артефакты
 docs/*
 !docs/RUNBOOK.md

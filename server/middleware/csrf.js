@@ -31,7 +31,7 @@ function getOrCreateToken(req) {
   return crypto.randomBytes(24).toString('hex');
 }
 
-const CSRF_SKIP_PATHS = new Set(['/health', '/ready']);
+const CSRF_SKIP_PATHS = new Set(['/health', '/ready', '/api/integrations/max/webhook']);
 
 module.exports = function csrfCheck(req, res, next) {
   if (CSRF_SKIP_PATHS.has(req.path)) {

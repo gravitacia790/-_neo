@@ -13,6 +13,23 @@ const envSchema = z.object({
   VAPID_SUBJECT: z.string().optional().or(z.literal('')),
   VAPID_PUBLIC_KEY: z.string().optional().or(z.literal('')),
   VAPID_PRIVATE_KEY: z.string().optional().or(z.literal('')),
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
+  DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300000).default(30000),
+  DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(5000),
+  API_RATE_LIMIT_MAX: z.coerce.number().int().min(100).max(10000).default(600),
+  WS_MAX_CONNECTIONS: z.coerce.number().int().min(100).max(50000).default(2000),
+  REDIS_URL: z.string().optional().or(z.literal('')),
+  WS_REDIS_CHANNEL: z.string().default('ws:broadcast'),
+  SMTP_HOST: z.string().optional().or(z.literal('')),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SMTP_SECURE: z.string().optional().or(z.literal('')),
+  SMTP_USER: z.string().optional().or(z.literal('')),
+  SMTP_PASS: z.string().optional().or(z.literal('')),
+  MAIL_FROM: z.string().optional().or(z.literal('')),
+  MAX_BOT_TOKEN: z.string().optional().or(z.literal('')),
+  MAX_BOT_NAME: z.string().optional().or(z.literal('')),
+  MAX_API_BASE: z.string().optional().or(z.literal('')),
+  MAX_WEBHOOK_SECRET: z.string().optional().or(z.literal('')),
 });
 
 function validateConfig(env) {

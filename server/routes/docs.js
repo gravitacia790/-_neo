@@ -24,6 +24,7 @@ const SPEC = {
           email: { type: 'string', format: 'email' },
           name: { type: 'string' },
           role: { type: 'string', enum: ['director', 'admin'] },
+          approval_status: { type: 'string', enum: ['pending', 'approved', 'rejected'] },
         },
       },
       Error: { type: 'object', properties: { error: { type: 'string' } } },
@@ -79,13 +80,17 @@ const SPEC = {
           },
         },
         responses: {
-          200: {
-            description: 'Успех',
+          202: {
+            description: 'Заявка создана и ожидает подтверждения администратора',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
-                  properties: { token: { type: 'string' }, user: { $ref: '#/components/schemas/User' } },
+                  properties: {
+                    user: { $ref: '#/components/schemas/User' },
+                    pendingApproval: { type: 'boolean', example: true },
+                    message: { type: 'string' },
+                  },
                 },
               },
             },
@@ -110,7 +115,11 @@ const SPEC = {
             },
           },
         },
-        responses: { 200: { description: 'Успех' }, 401: { description: 'Неверные данные' } },
+        responses: {
+          200: { description: 'Успех' },
+          401: { description: 'Неверные данные' },
+          403: { description: 'Заявка ещё не одобрена или отклонена' },
+        },
       },
     },
     '/api/auth/logout': {
