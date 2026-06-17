@@ -295,12 +295,23 @@ export function initApp() {
   window.addEventListener('resize', mountMobileNavForViewport);
 
   if (API.isAuthed()) {
-    API.me().then(function (resp) {
-      API.setUser(resp.user);
-      showMainApp();
-    }).catch(function () {
-      API.clearUser();
+    // Не привязываем уход с заставки к сетевому запросу: если /api/auth/me зависает
+    // (холодный старт сервера, медленная мобильная сеть), пользователь иначе застрянет
+    // на интро навсегда. Через AUTH_BOOT_TIMEOUT_MS уходим на splash.
+    var fellBackToSplash = false;
+    var authBootFallback = window.setTimeout(function () {
+      fellBackToSplash = true;
       runAfterIntro(showSplash);
+    }, 7000);
+    API.me().then(function (resp) {
+      window.clearTimeout(authBootFallback);
+      API.setUser(resp.user);
+      // Если уже ушли на splash из-за таймаута — открываем приложение без повторного интро.
+      showMainApp(fellBackToSplash ? { skipIntro: true } : undefined);
+    }).catch(function () {
+      window.clearTimeout(authBootFallback);
+      API.clearUser();
+      if (!fellBackToSplash) runAfterIntro(showSplash);
     });
   } else {
     runAfterIntro(showSplash);
