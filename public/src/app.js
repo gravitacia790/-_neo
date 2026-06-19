@@ -13,7 +13,7 @@ import { initStaticViewBindings, renderStaticViews } from './views.js';
 import { WS } from './ws.js';
 export var APP_RUNTIME = {
   tabsInitialized: false,
-  introMinDuration: 2400,
+  introMinDuration: 5000,
   introStartedAt: Date.now(),
   introTimerId: null,
   shellScrollBound: false,
