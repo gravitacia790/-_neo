@@ -1,4 +1,5 @@
 import { renderAdminPanel } from './admin/main.js';
+import { API } from './api.js';
 import { renderDirectors } from './directors.js';
 import { renderEvents } from './events.js';
 import { renderCalendar, renderGL, renderInternship } from './extras.js';
@@ -243,6 +244,7 @@ export function initTabs() {
     var activeTab = document.getElementById(tabId);
     if (activeTab) activeTab.classList.add('active');
     activeTabId = tabId;
+    API.trackEvent('tab_view', tabId);
     navBtns.forEach(function (btn) {
       if (btn.getAttribute('data-tab') === tabId) btn.classList.add('active');
       else btn.classList.remove('active');

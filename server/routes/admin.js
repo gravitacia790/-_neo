@@ -262,6 +262,18 @@ router.get(
          LIMIT 5`
       )
       .all();
+    const tabViews = await db
+      .prepare(
+        `SELECT ae.meta AS tab, COUNT(*) AS views
+         FROM analytics_events ae
+         JOIN users u ON u.id = ae.user_id
+         WHERE ae.type = 'tab_view'
+           AND u.role = 'director'
+           AND ae.created_at >= NOW() - INTERVAL '30 days'
+         GROUP BY ae.meta
+         ORDER BY views DESC`
+      )
+      .all();
     res.json({
       overview: {
         directors: Number(directors.c),
@@ -285,6 +297,10 @@ router.get(
           title: e.title,
           date: e.date,
           registrationsCount: Number(e.registrations_count || 0),
+        })),
+        tabViews: tabViews.map((t) => ({
+          tab: t.tab || '',
+          views: Number(t.views || 0),
         })),
       },
     });

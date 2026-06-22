@@ -620,6 +620,24 @@ describe('Admin', () => {
     expect(typeof res.body.overview.sleepingDirectors).toBe('number');
     expect(res.body.overview.upcomingEvents).toBeInstanceOf(Array);
     expect(res.body.overview.topEvents).toBeInstanceOf(Array);
+    expect(res.body.overview.tabViews).toBeInstanceOf(Array);
+  });
+
+  it('POST /api/analytics/event — пишет просмотр вкладки, попадает в обзор', async () => {
+    const ok = await apiPost('/api/analytics/event')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'tab_view', meta: 'directors' });
+    expect(ok.status).toBe(200);
+
+    const bad = await apiPost('/api/analytics/event')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'hack', meta: 'x' });
+    expect(bad.status).toBe(400);
+
+    const adminToken = await loginAdmin();
+    const ov = await apiGet('/api/admin/overview').set('Authorization', `Bearer ${adminToken}`);
+    const dirRow = ov.body.overview.tabViews.find((t) => t.tab === 'directors');
+    expect(dirRow && dirRow.views).toBeGreaterThan(0);
   });
 
   it('last_seen_at обновляется при обращении к защищённому маршруту', async () => {

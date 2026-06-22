@@ -91,6 +91,13 @@ export var API = (function () {
     me: function () {
       return request('GET', '/api/auth/me');
     },
+    trackEvent: function (type, meta) {
+      try {
+        return request('POST', '/api/analytics/event', { type: type, meta: meta }).catch(function () {});
+      } catch (_) {
+        return Promise.resolve();
+      }
+    },
     forgotPassword: function (email) {
       return request('POST', '/api/auth/forgot-password', { email: email });
     },

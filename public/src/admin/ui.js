@@ -42,7 +42,31 @@ export function buildOverviewSection(overview, data) {
   ];
   return h`<section class="admin-section active" data-admin-panel="overview"><div class="admin-metric-grid">${cards.map(function (card) {
     return h`<div class="admin-metric"><span>${card[0]}</span><strong>${card[1]}</strong></div>`;
-  })}</div>${buildTrends(data || {})}${buildOverviewLists(overview)}</section>`;
+  })}</div>${buildTrends(data || {})}${buildTabViews(overview)}${buildOverviewLists(overview)}</section>`;
+}
+
+var TAB_LABELS = {
+  directors: 'Директора',
+  expert: 'Эксперт',
+  gl: 'Гравитация лидерства',
+  calendar: 'Календарь',
+  profile: 'Профиль',
+  school: 'Школа',
+  events: 'События',
+  internship: 'Стажировка',
+  admin: 'Админ',
+};
+
+function buildTabViews(overview) {
+  var views = (overview && overview.tabViews) || [];
+  if (!views.length) {
+    return h`<h3 class="section-label" style="margin-top:18px;">Просмотры разделов за 30 дней</h3><div class="admin-list-card"><div class="list-state">Пока нет данных о просмотрах. Появятся, когда директора начнут переходить по вкладкам.</div></div>`;
+  }
+  var max = views.reduce(function (m, v) { return Math.max(m, v.views); }, 1);
+  return h`<h3 class="section-label" style="margin-top:18px;">Просмотры разделов за 30 дней</h3><div class="admin-list-card">${views.map(function (v) {
+    var pct = Math.round((v.views / max) * 100);
+    return h`<div style="margin:8px 0;"><div style="display:flex;justify-content:space-between;font-size:0.82rem;color:var(--charcoal);"><span>${TAB_LABELS[v.tab] || v.tab || '—'}</span><strong>${v.views}</strong></div><div style="height:6px;border-radius:4px;background:rgba(161,49,58,0.1);margin-top:4px;"><div style="height:6px;border-radius:4px;background:#a1313a;width:${pct}%;"></div></div></div>`;
+  })}</div>`;
 }
 
 function bucketByDay(items, dateField, days) {

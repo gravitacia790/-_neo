@@ -14,6 +14,7 @@ const ROUTE_PREFIXES = {
   messages: '[messages]',
   webpush: '[webpush]',
   max: '[max]',
+  analytics: '[analytics]',
 };
 
 function safe(prefix) {

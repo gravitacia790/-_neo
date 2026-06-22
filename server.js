@@ -155,6 +155,7 @@ function createApp(options) {
   app.use('/api/admin', require('./server/routes/admin'));
   app.use('/api/messages', messagesSendLimiter, require('./server/routes/messages'));
   app.use('/api/integrations/max', require('./server/routes/maxIntegration'));
+  app.use('/api/analytics', require('./server/routes/analytics'));
   app.use('/api/docs', require('./server/routes/docs'));
 
   app.use(express.static(path.join(__dirname, 'public')));
