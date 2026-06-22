@@ -216,6 +216,21 @@ router.get(
     const pendingApplications = await db
       .prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'director' AND approval_status = 'pending'")
       .get();
+    const active7 = await db
+      .prepare(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'director' AND approval_status = 'approved' AND last_seen_at >= NOW() - INTERVAL '7 days'"
+      )
+      .get();
+    const active30 = await db
+      .prepare(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'director' AND approval_status = 'approved' AND last_seen_at >= NOW() - INTERVAL '30 days'"
+      )
+      .get();
+    const sleeping = await db
+      .prepare(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'director' AND approval_status = 'approved' AND (last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '30 days')"
+      )
+      .get();
     const events = await db.prepare("SELECT COUNT(*) AS c FROM events WHERE deleted_at IS NULL AND status = 'published'").get();
     const eventRegs = await db.prepare('SELECT COUNT(*) AS c FROM event_registrations').get();
     const extraRegs = await db.prepare('SELECT COUNT(*) AS c FROM extra_registrations').get();
@@ -251,6 +266,9 @@ router.get(
       overview: {
         directors: Number(directors.c),
         pendingApplications: Number(pendingApplications.c),
+        activeDirectors7d: Number(active7.c),
+        activeDirectors30d: Number(active30.c),
+        sleepingDirectors: Number(sleeping.c),
         events: Number(events.c),
         registrations: Number(eventRegs.c) + Number(extraRegs.c),
         registrationsLast7Days: Number(eventRegs7.c) + Number(extraRegs7.c),

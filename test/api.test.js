@@ -615,8 +615,17 @@ describe('Admin', () => {
     expect(typeof res.body.overview.directors).toBe('number');
     expect(typeof res.body.overview.events).toBe('number');
     expect(typeof res.body.overview.registrationsLast7Days).toBe('number');
+    expect(typeof res.body.overview.activeDirectors7d).toBe('number');
+    expect(typeof res.body.overview.activeDirectors30d).toBe('number');
+    expect(typeof res.body.overview.sleepingDirectors).toBe('number');
     expect(res.body.overview.upcomingEvents).toBeInstanceOf(Array);
     expect(res.body.overview.topEvents).toBeInstanceOf(Array);
+  });
+
+  it('last_seen_at обновляется при обращении к защищённому маршруту', async () => {
+    await apiGet('/api/profile').set('Authorization', `Bearer ${token}`);
+    const owner = await db.prepare('SELECT last_seen_at FROM users WHERE email = ?').get('test@school.ru');
+    expect(owner.last_seen_at).toBeTruthy();
   });
 
   it('POST /api/admin/materials — создаёт опубликованный материал', async () => {

@@ -95,6 +95,7 @@ async function init(server) {
 
     ws._userId = payload.id;
     ws._userRole = payload.role;
+    require('./lastSeen').touchLastSeen(payload.id);
     ws.isAlive = true;
     ws.on('pong', () => {
       ws.isAlive = true;

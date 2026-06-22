@@ -30,6 +30,9 @@ export function buildAdminTabs(sections) {
 export function buildOverviewSection(overview) {
   var cards = [
     ['Директоров', overview.directors || 0],
+    ['Активны за 7 дней', overview.activeDirectors7d || 0],
+    ['Активны за 30 дней', overview.activeDirectors30d || 0],
+    ['Не заходили >30 дней', overview.sleepingDirectors || 0],
     ['Ожидают решения', overview.pendingApplications || 0],
     ['Мероприятий', overview.events || 0],
     ['Регистраций', overview.registrations || 0],

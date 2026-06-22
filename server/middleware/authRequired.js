@@ -1,5 +1,6 @@
 const { verifyToken } = require('../auth');
 const { db } = require('../db');
+const { touchLastSeen } = require('../lastSeen');
 
 module.exports = async function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
@@ -15,5 +16,6 @@ module.exports = async function authRequired(req, res, next) {
     return res.status(403).json({ error: 'Доступ к аккаунту ещё не подтверждён администратором' });
   }
   req.user = user;
+  touchLastSeen(user.id);
   next();
 };
