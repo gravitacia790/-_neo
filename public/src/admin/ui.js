@@ -7,7 +7,7 @@ export function getAdminSectionRegistry(data) {
     return item.status === 'pending';
   }).length;
   return [
-    { id: 'overview', label: 'Обзор', render: function () { return buildOverviewSection(data.overview); } },
+    { id: 'overview', label: 'Обзор', render: function () { return buildOverviewSection(data.overview, data); } },
     {
       id: 'applications',
       label: 'Заявки' + (pendingApplicationsCount ? ' (' + pendingApplicationsCount + ')' : ''),
@@ -27,7 +27,7 @@ export function buildAdminTabs(sections) {
   })}</div>`;
 }
 
-export function buildOverviewSection(overview) {
+export function buildOverviewSection(overview, data) {
   var cards = [
     ['Директоров', overview.directors || 0],
     ['Активны за 7 дней', overview.activeDirectors7d || 0],
@@ -42,7 +42,54 @@ export function buildOverviewSection(overview) {
   ];
   return h`<section class="admin-section active" data-admin-panel="overview"><div class="admin-metric-grid">${cards.map(function (card) {
     return h`<div class="admin-metric"><span>${card[0]}</span><strong>${card[1]}</strong></div>`;
-  })}</div>${buildOverviewLists(overview)}</section>`;
+  })}</div>${buildTrends(data || {})}${buildOverviewLists(overview)}</section>`;
+}
+
+function bucketByDay(items, dateField, days) {
+  var counts = new Array(days).fill(0);
+  var now = new Date();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  (items || []).forEach(function (item) {
+    var value = item && item[dateField];
+    if (!value) return;
+    var d = new Date(value);
+    if (Number.isNaN(d.getTime())) return;
+    var dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    var idx = days - 1 - Math.round((todayStart - dayStart) / 86400000);
+    if (idx >= 0 && idx < days) counts[idx] += 1;
+  });
+  return counts;
+}
+
+function buildSparkline(title, counts) {
+  var total = counts.reduce(function (a, b) { return a + b; }, 0);
+  var last7 = counts.slice(-7).reduce(function (a, b) { return a + b; }, 0);
+  var max = Math.max.apply(null, counts.concat([1]));
+  var w = 260;
+  var hgt = 44;
+  var step = counts.length > 1 ? w / (counts.length - 1) : 0;
+  var pts = counts
+    .map(function (c, i) {
+      var x = Math.round(i * step);
+      var y = Math.round(hgt - 4 - (c / max) * (hgt - 8));
+      return x + ',' + y;
+    })
+    .join(' ');
+  var svg =
+    '<svg viewBox="0 0 ' + w + ' ' + hgt + '" preserveAspectRatio="none" width="100%" height="' + hgt + '" style="display:block;margin-top:8px;">' +
+    '<polyline points="0,' + hgt + ' ' + pts + ' ' + w + ',' + hgt + '" fill="rgba(161,49,58,0.08)" stroke="none"/>' +
+    '<polyline points="' + pts + '" fill="none" stroke="#a1313a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '</svg>';
+  return h`<div class="admin-list-card"><strong>${title}</strong>${raw(svg)}<p style="margin:6px 0 0;">За 30 дней: ${total} · за 7 дней: ${last7}</p></div>`;
+}
+
+function buildTrends(data) {
+  var sparks = [
+    buildSparkline('Регистрации по дням', bucketByDay(data.registrations, 'registeredAt', 30)),
+    buildSparkline('Новые директора', bucketByDay(data.users, 'createdAt', 30)),
+    buildSparkline('Новые мероприятия', bucketByDay(data.events, 'createdAt', 30)),
+  ];
+  return h`<h3 class="section-label" style="margin-top:18px;">Тренды за 30 дней</h3><div class="admin-overview-lists">${sparks}</div>`;
 }
 
 export function buildApplicationsSection(applications) {
