@@ -15,6 +15,7 @@ const ROUTE_PREFIXES = {
   webpush: '[webpush]',
   max: '[max]',
   analytics: '[analytics]',
+  ai: '[ai]',
 };
 
 function safe(prefix) {

@@ -4,6 +4,15 @@ const { db } = require('../db');
 const { addActivity } = require('../rating');
 const { reindexDirector } = require('./directorsService');
 
+function reindexAiProfileInBackground(userId) {
+  if (!process.env.OPENAI_API_KEY) return;
+  try {
+    require('./aiSearchService').reindexDirectorAi(userId).catch(() => {});
+  } catch (_) {
+    // AI index is helpful, but profile saving must not depend on it.
+  }
+}
+
 async function loadProfile(userId) {
   const user = await db.prepare('SELECT id, email, name, phone FROM users WHERE id = ?').get(userId);
   const profile = (await db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId)) || {};
@@ -108,6 +117,7 @@ async function saveProfile(userId, profile) {
 
   await addActivity(userId, 'profile_update', 'Обновил профиль', 5);
   await reindexDirector(userId);
+  reindexAiProfileInBackground(userId);
   return loadProfile(userId);
 }
 
@@ -125,6 +135,7 @@ async function saveSchool(userId, school) {
     ).run(userId, school.name, school.address, school.students, school.teachers, school.type, school.buildingCount, school.usefulExperience, school.wantToKnow);
   }
   await reindexDirector(userId);
+  reindexAiProfileInBackground(userId);
   return loadSchool(userId);
 }
 

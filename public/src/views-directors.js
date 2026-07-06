@@ -7,6 +7,7 @@ export function renderDirectorsView() {
     '<button class="director-segment active" data-segment="all">Все</button>' +
     '<button class="director-segment" data-segment="mentors">Наставники</button>' +
     '<button class="director-segment" data-segment="favorites">Избранное</button>' +
+    '<button class="director-segment" data-segment="ai">AI</button>' +
     '</div>' +
     '<div class="directors-hint" id="directorsHint"></div>' +
     '<div class="favorites-toolbar" id="favoritesToolbar" hidden>' +
@@ -16,7 +17,7 @@ export function renderDirectorsView() {
     '<option value="name">По алфавиту</option>' +
     '</select>' +
     '</div>' +
-    '<div class="search-container"><input type="text" id="directorSearchInput" class="search-input" placeholder="Поиск по имени, школе..."></div>' +
+    '<div class="search-container" id="directorSearchContainer"><input type="text" id="directorSearchInput" class="search-input" placeholder="Поиск по имени, школе..."></div>' +
     '<div id="directorsList" class="directors-grid"></div>';
 }
 

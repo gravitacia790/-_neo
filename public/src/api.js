@@ -138,6 +138,12 @@ export var API = (function () {
     toggleDirectorFavorite: function (directorId) {
       return request('POST', '/api/directors/' + directorId + '/favorite');
     },
+    searchAiDirectors: function (query) {
+      return request('POST', '/api/ai/search', { query: query });
+    },
+    reindexAllAi: function () {
+      return request('POST', '/api/ai/reindex-all');
+    },
 
     getEvents: function (page, limit) {
       var params = [];

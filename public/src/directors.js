@@ -3,12 +3,13 @@ import { API } from './api.js';
 import { APPSTATE } from './core-state.js';
 import { bindDirectorActions } from './directors-actions.js';
 import { renderDirectorCard, renderDirectorsState } from './directors-ui.js';
+import { html, setHtml } from './html.js';
 export var DIRECTOR_SEGMENT_KEY = 'directors.segment';
 export var DIRECTOR_FAVORITES_SORT_KEY = 'directors.favorites.sort';
 export var directorsState = APPSTATE.getDirectors();
 
 export function normalizeDirectorSegment(segment) {
-  if (segment === 'all' || segment === 'mentors' || segment === 'favorites') return segment;
+  if (segment === 'all' || segment === 'mentors' || segment === 'favorites' || segment === 'ai') return segment;
   return 'all';
 }
 
@@ -46,6 +47,7 @@ export function renderDirectors(append) {
   directorsState = APPSTATE.getDirectors();
   if (directorsState.segment === 'mentors') return renderMentors();
   if (directorsState.segment === 'favorites') return renderFavoriteDirectors();
+  if (directorsState.segment === 'ai') return renderAiDirectors();
   if (!append) {
     APPSTATE.resetDirectorsPagination();
     directorsState = APPSTATE.getDirectors();
@@ -159,6 +161,84 @@ export function renderMentors() {
     });
 }
 
+export function renderAiDirectors() {
+  var container = document.getElementById('directorsList');
+  if (!container) return;
+  updateDirectorsHint();
+  APPSTATE.setDirectorsCache([]);
+  setHtml(
+    container,
+    html`<div class="ai-search-panel">
+      ${
+        API.isAdmin()
+          ? html`<div class="ai-admin-tools"><button class="ghost-btn" type="button" id="aiReindexAllBtn">Обновить AI-индекс</button><span id="aiReindexStatus" class="ai-admin-status"></span></div>`
+          : ''
+      }
+      <form id="aiDirectorSearchForm" class="ai-search-form">
+        <label class="ai-search-label" for="aiDirectorQuery">Опишите задачу, по которой нужен опыт коллеги</label>
+        <textarea id="aiDirectorQuery" class="ai-search-textarea" rows="4" maxlength="1000" placeholder="Например: нужно запустить инженерные классы, выстроить наставничество педагогов или подготовиться к аккредитации"></textarea>
+        <button class="save-btn ai-search-submit" type="submit">Найти коллег</button>
+      </form>
+      <div id="aiDirectorResults" class="ai-search-results"></div>
+    </div>`
+  );
+
+  var form = document.getElementById('aiDirectorSearchForm');
+  var textarea = document.getElementById('aiDirectorQuery');
+  var results = document.getElementById('aiDirectorResults');
+  var reindexBtn = document.getElementById('aiReindexAllBtn');
+  var reindexStatus = document.getElementById('aiReindexStatus');
+  if (reindexBtn) {
+    reindexBtn.addEventListener('click', function () {
+      reindexBtn.disabled = true;
+      if (reindexStatus) reindexStatus.textContent = 'Обновляем профили...';
+      API.reindexAllAi()
+        .then(function () {
+          if (reindexStatus) reindexStatus.textContent = 'AI-индекс обновлён';
+        })
+        .catch(function (err) {
+          if (reindexStatus) reindexStatus.textContent = err.message || 'Не удалось обновить AI-индекс';
+        })
+        .finally(function () {
+          reindexBtn.disabled = false;
+        });
+    });
+  }
+  if (!form || !textarea || !results) return;
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var query = textarea.value.trim();
+    if (query.length < 8) {
+      setHtml(results, html`<div class="list-state is-error">Опишите задачу чуть подробнее.</div>`);
+      return;
+    }
+    setHtml(results, html`<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>`);
+    API.searchAiDirectors(query)
+      .then(function (resp) {
+        var matches = resp.matches || [];
+        APPSTATE.setDirectorsCache(matches.map(function (m) { return m.director; }));
+        if (!matches.length) {
+          setHtml(results, html`<div class="list-state">Подходящих коллег пока не найдено. Попробуйте описать задачу другими словами.</div>`);
+          return;
+        }
+        setHtml(
+          results,
+          html`${matches.map(function (m) {
+            return html`<div class="ai-match-card">
+              <div class="ai-match-reason"><strong>Почему подходит:</strong> ${m.reason || 'Профиль близок к вашему запросу по смыслу.'}</div>
+              ${renderDirectorCard(m.director, { compact: true })}
+            </div>`;
+          })}`
+        );
+        bindDirectorActions(results);
+      })
+      .catch(function (err) {
+        setHtml(results, html`<div class="list-state is-error">${err.message || 'AI-поиск временно недоступен.'}</div>`);
+      });
+  });
+}
+
 export function bindDirectorSegments() {
   var root = document.getElementById('directorSegments');
   if (!root) return;
@@ -190,9 +270,15 @@ export function updateDirectorsHint() {
   var hint = document.getElementById('directorsHint');
   var input = document.getElementById('directorSearchInput');
   var toolbar = document.getElementById('favoritesToolbar');
+  var searchContainer = document.getElementById('directorSearchContainer');
   if (!hint) return;
   directorsState = APPSTATE.getDirectors();
   if (toolbar) toolbar.hidden = directorsState.segment !== 'favorites';
+  if (searchContainer) searchContainer.hidden = directorsState.segment === 'ai';
+  if (directorsState.segment === 'ai') {
+    hint.textContent = 'AI: опишите задачу, и система подберёт директоров с похожим реализованным опытом.';
+    return;
+  }
   if (directorsState.segment === 'favorites') {
     hint.textContent =
       'Избранное: быстрый доступ к важным контактам. Здесь можно искать только среди сохраненных директоров.';

@@ -589,6 +589,19 @@ describe('Registration contact privacy', () => {
   });
 });
 
+describe('AI search', () => {
+  it('POST /api/ai/search reports missing OpenAI key without pretending to search', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    const res = await apiPost('/api/ai/search').set('Authorization', `Bearer ${token}`).send({
+      query: 'Нужно найти директора с опытом запуска инженерных классов',
+    });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toContain('OPENAI_API_KEY');
+    if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+  });
+});
+
 describe('Extras', () => {
   it('POST/DELETE /api/extras/:category/:eventId/register — регистрирует и отменяет участника', async () => {
     const reg = await apiPost('/api/extras/gl/gl1/register').set('Authorization', `Bearer ${token}`).send({

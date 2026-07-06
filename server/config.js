@@ -30,6 +30,9 @@ const envSchema = z.object({
   MAX_BOT_NAME: z.string().optional().or(z.literal('')),
   MAX_API_BASE: z.string().optional().or(z.literal('')),
   MAX_WEBHOOK_SECRET: z.string().optional().or(z.literal('')),
+  OPENAI_API_KEY: z.string().optional().or(z.literal('')),
+  OPENAI_EMBEDDING_MODEL: z.string().optional().or(z.literal('')),
+  OPENAI_ANSWER_MODEL: z.string().optional().or(z.literal('')),
 });
 
 function validateConfig(env) {
