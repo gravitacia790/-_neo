@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { db } = require('../db');
 const directorsService = require('./directorsService');
+const logger = require('../logger');
 
 const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
 const ANSWER_MODEL = process.env.OPENAI_ANSWER_MODEL || 'gpt-5.4-mini';
@@ -8,6 +9,32 @@ const MAX_INDEXED_DIRECTORS = 2500;
 const AI_CANDIDATE_LIMIT = Number(process.env.AI_CANDIDATE_LIMIT) || 12;
 const AI_RESULT_LIMIT = Number(process.env.AI_RESULT_LIMIT) || 5;
 const AI_MIN_SCORE = Number(process.env.AI_MIN_SCORE) || 0.18;
+const AI_LEXICAL_BOOST = 0.2;
+const AI_STOP_WORDS = new Set([
+  'директор',
+  'директора',
+  'школа',
+  'школы',
+  'коллега',
+  'коллеги',
+  'найти',
+  'нужно',
+  'нужен',
+  'нужна',
+  'нужны',
+  'есть',
+  'опыт',
+  'задача',
+  'задачи',
+  'помочь',
+  'который',
+  'которая',
+  'которые',
+  'чтобы',
+  'может',
+  'могу',
+  'хочу',
+]);
 
 function getOpenAiKey() {
   return (process.env.OPENAI_API_KEY || '').trim();
@@ -19,6 +46,35 @@ function hashText(text) {
 
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeSearchText(value) {
+  return normalizeText(value).toLowerCase().replace(/ё/g, 'е');
+}
+
+function stemSearchWord(word) {
+  return word
+    .replace(/(иями|ями|ами|ого|ему|ому|ыми|ими|ая|яя|ое|ее|ые|ие|ый|ий|ой|ом|ем|ам|ям|ах|ях|ов|ев|ей|ию|ью|ия|ья|ие|ия|а|я|ы|и|о|е|у|ю|ь)$/u, '')
+    .trim();
+}
+
+function getMeaningfulTerms(text) {
+  const words = normalizeSearchText(text).match(/[a-zа-я0-9]{4,}/giu) || [];
+  const terms = [];
+  words.forEach((word) => {
+    if (AI_STOP_WORDS.has(word)) return;
+    const stem = stemSearchWord(word);
+    if (stem.length < 4 || AI_STOP_WORDS.has(stem)) return;
+    if (!terms.includes(stem)) terms.push(stem);
+  });
+  return terms;
+}
+
+function getLexicalMatches(query, sourceText) {
+  const terms = getMeaningfulTerms(query);
+  if (!terms.length) return [];
+  const source = normalizeSearchText(sourceText);
+  return terms.filter((term) => source.includes(term));
 }
 
 async function fetchProfileRows(userId) {
@@ -80,8 +136,20 @@ async function requestOpenAi(path, payload) {
   if (!response.ok) {
     const err = new Error((data && data.error && data.error.message) || 'AI-сервис временно недоступен.');
     err.status = response.status >= 500 ? 503 : 400;
+    logger.warn('ai.openai_failed', {
+      path,
+      model: payload && payload.model,
+      status: response.status,
+      message: err.message,
+    });
     throw err;
   }
+  logger.info('ai.openai_ok', {
+    path,
+    model: payload && payload.model,
+    inputTokens: data && data.usage && (data.usage.input_tokens || data.usage.prompt_tokens || data.usage.total_tokens),
+    outputTokens: data && data.usage && (data.usage.output_tokens || data.usage.completion_tokens),
+  });
   return data;
 }
 
@@ -259,14 +327,16 @@ async function searchDirectors(viewer, query) {
   const ranked = rows
     .map((row) => {
       const embedding = parseEmbeddingJson(row.embedding_json);
+      const lexicalMatches = getLexicalMatches(q, row.source_text || '');
       return {
         userId: row.user_id,
         sourceText: row.source_text || '',
         score: cosineSimilarity(queryEmbedding, embedding),
+        lexicalMatches,
       };
     })
-    .filter((row) => row.score >= AI_MIN_SCORE)
-    .sort((a, b) => b.score - a.score)
+    .filter((row) => row.score >= AI_MIN_SCORE || row.lexicalMatches.length)
+    .sort((a, b) => (b.score + b.lexicalMatches.length * AI_LEXICAL_BOOST) - (a.score + a.lexicalMatches.length * AI_LEXICAL_BOOST))
     .slice(0, AI_CANDIDATE_LIMIT);
 
   const matches = [];
@@ -277,12 +347,22 @@ async function searchDirectors(viewer, query) {
         director: result.director,
         score: Number(item.score.toFixed(4)),
         sourceText: item.sourceText,
-        reason: buildDeterministicReason(q, item.sourceText),
+        lexicalMatches: item.lexicalMatches,
+        reason: item.lexicalMatches.length
+          ? 'В профиле есть прямое совпадение по теме: ' + item.lexicalMatches.join(', ')
+          : buildDeterministicReason(q, item.sourceText),
       });
     }
   }
 
-  const validations = await validateRelevantMatches(q, matches).catch(() => []);
+  let validations = [];
+  let validationError = null;
+  try {
+    validations = await validateRelevantMatches(q, matches);
+  } catch (err) {
+    validationError = err;
+    logger.warn('ai.validation_failed', { message: err.message });
+  }
   let relevantMatches = [];
   validations.forEach((item) => {
     const match = matches[Number(item.rank) - 1];
@@ -290,7 +370,15 @@ async function searchDirectors(viewer, query) {
     if (item.reason) match.reason = normalizeText(item.reason).slice(0, 500);
     relevantMatches.push(match);
   });
-  if (!validations.length) {
+  matches.forEach((match) => {
+    if (!match.lexicalMatches || !match.lexicalMatches.length) return;
+    if (relevantMatches.some((item) => item.director.id === match.director.id)) return;
+    relevantMatches.push(match);
+  });
+  if (validationError && !relevantMatches.length) {
+    throw validationError;
+  }
+  if (!validations.length && !relevantMatches.length) {
     relevantMatches = matches.filter((match) => match.score >= Math.max(AI_MIN_SCORE, 0.35));
   }
   relevantMatches = relevantMatches.slice(0, AI_RESULT_LIMIT);
