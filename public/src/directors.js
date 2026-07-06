@@ -7,6 +7,7 @@ import { html, setHtml } from './html.js';
 export var DIRECTOR_SEGMENT_KEY = 'directors.segment';
 export var DIRECTOR_FAVORITES_SORT_KEY = 'directors.favorites.sort';
 export var directorsState = APPSTATE.getDirectors();
+var aiSearchRequestId = 0;
 
 export function normalizeDirectorSegment(segment) {
   if (segment === 'all' || segment === 'mentors' || segment === 'favorites' || segment === 'ai') return segment;
@@ -164,6 +165,7 @@ export function renderMentors() {
 export function renderAiDirectors() {
   var container = document.getElementById('directorsList');
   if (!container) return;
+  aiSearchRequestId += 1;
   updateDirectorsHint();
   APPSTATE.setDirectorsCache([]);
   setHtml(
@@ -186,6 +188,7 @@ export function renderAiDirectors() {
   var form = document.getElementById('aiDirectorSearchForm');
   var textarea = document.getElementById('aiDirectorQuery');
   var results = document.getElementById('aiDirectorResults');
+  var submitBtn = form ? form.querySelector('.ai-search-submit') : null;
   var reindexBtn = document.getElementById('aiReindexAllBtn');
   var reindexStatus = document.getElementById('aiReindexStatus');
   if (reindexBtn) {
@@ -213,9 +216,17 @@ export function renderAiDirectors() {
       setHtml(results, html`<div class="list-state is-error">Опишите задачу чуть подробнее.</div>`);
       return;
     }
+    var requestId = aiSearchRequestId + 1;
+    aiSearchRequestId = requestId;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Ищем коллег...';
+    }
+    textarea.disabled = true;
     setHtml(results, html`<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>`);
     API.searchAiDirectors(query)
       .then(function (resp) {
+        if (requestId !== aiSearchRequestId || APPSTATE.getDirectors().segment !== 'ai' || !document.body.contains(results)) return;
         var matches = resp.matches || [];
         APPSTATE.setDirectorsCache(matches.map(function (m) { return m.director; }));
         if (!matches.length) {
@@ -234,7 +245,16 @@ export function renderAiDirectors() {
         bindDirectorActions(results);
       })
       .catch(function (err) {
+        if (requestId !== aiSearchRequestId || APPSTATE.getDirectors().segment !== 'ai' || !document.body.contains(results)) return;
         setHtml(results, html`<div class="list-state is-error">${err.message || 'AI-поиск временно недоступен.'}</div>`);
+      })
+      .finally(function () {
+        if (requestId !== aiSearchRequestId || !document.body.contains(results)) return;
+        textarea.disabled = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Найти коллег';
+        }
       });
   });
 }
