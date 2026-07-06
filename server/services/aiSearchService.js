@@ -5,6 +5,9 @@ const directorsService = require('./directorsService');
 const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
 const ANSWER_MODEL = process.env.OPENAI_ANSWER_MODEL || 'gpt-5.4-mini';
 const MAX_INDEXED_DIRECTORS = 2500;
+const AI_CANDIDATE_LIMIT = Number(process.env.AI_CANDIDATE_LIMIT) || 12;
+const AI_RESULT_LIMIT = Number(process.env.AI_RESULT_LIMIT) || 5;
+const AI_MIN_SCORE = Number(process.env.AI_MIN_SCORE) || 0.18;
 
 function getOpenAiKey() {
   return (process.env.OPENAI_API_KEY || '').trim();
@@ -173,6 +176,7 @@ function buildDeterministicReason(query, sourceText) {
   return 'Профиль близок по смыслу к запросу: ' + normalizeText(query).slice(0, 160);
 }
 
+// eslint-disable-next-line no-unused-vars
 async function explainMatches(query, matches) {
   if (!matches.length) return [];
   const compact = matches.map((match, index) => ({
@@ -188,6 +192,36 @@ async function explainMatches(query, matches) {
       'По запросу пользователя кратко объясни, почему каждый кандидат подходит. ' +
       'Ответ верни строго JSON массивом объектов {"rank": number, "reason": string}. ' +
       'Не выдумывай факты, опирайся только на source.\n\n' +
+      'Запрос: ' + query + '\n\nКандидаты:\n' + JSON.stringify(compact),
+  });
+  const outputText = data.output_text || (data.output && data.output.map((o) => JSON.stringify(o)).join('\n')) || '';
+  try {
+    const parsed = JSON.parse(outputText);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (_) {
+    // fall back below
+  }
+  return [];
+}
+
+async function validateRelevantMatches(query, matches) {
+  if (!matches.length) return [];
+  const compact = matches.map((match, index) => ({
+    rank: index + 1,
+    name: match.director.name,
+    school: match.director.school,
+    source: match.sourceText.slice(0, 900),
+  }));
+  const data = await requestOpenAi('responses', {
+    model: ANSWER_MODEL,
+    input:
+      'Ты помогаешь директорам школ найти коллег с уже реализованным релевантным опытом. ' +
+      'Для каждого кандидата реши, подходит ли он под запрос пользователя. ' +
+      'Ставь relevant=true только если в source явно есть опыт, навык, тег или задача, близкие к запросу. ' +
+      'Если связь слабая, общая или кандидат просто похож по профессии, ставь relevant=false. ' +
+      'Не выдумывай факты и не добавляй кандидатов, которых нет в списке. ' +
+      'Ответ верни строго JSON массивом объектов {"rank": number, "relevant": boolean, "reason": string}. ' +
+      'reason для relevant=true должен коротко объяснять, какой опыт совпал. Для relevant=false reason можно оставить пустым.\n\n' +
       'Запрос: ' + query + '\n\nКандидаты:\n' + JSON.stringify(compact),
   });
   const outputText = data.output_text || (data.output && data.output.map((o) => JSON.stringify(o)).join('\n')) || '';
@@ -231,9 +265,9 @@ async function searchDirectors(viewer, query) {
         score: cosineSimilarity(queryEmbedding, embedding),
       };
     })
-    .filter((row) => row.score > 0)
+    .filter((row) => row.score >= AI_MIN_SCORE)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
+    .slice(0, AI_CANDIDATE_LIMIT);
 
   const matches = [];
   for (const item of ranked) {
@@ -248,19 +282,26 @@ async function searchDirectors(viewer, query) {
     }
   }
 
-  const explanations = await explainMatches(q, matches).catch(() => []);
-  explanations.forEach((item) => {
+  const validations = await validateRelevantMatches(q, matches).catch(() => []);
+  let relevantMatches = [];
+  validations.forEach((item) => {
     const match = matches[Number(item.rank) - 1];
-    if (match && item.reason) match.reason = normalizeText(item.reason).slice(0, 500);
+    if (!match || item.relevant !== true) return;
+    if (item.reason) match.reason = normalizeText(item.reason).slice(0, 500);
+    relevantMatches.push(match);
   });
+  if (!validations.length) {
+    relevantMatches = matches.filter((match) => match.score >= Math.max(AI_MIN_SCORE, 0.35));
+  }
+  relevantMatches = relevantMatches.slice(0, AI_RESULT_LIMIT);
 
   await db
     .prepare('INSERT INTO ai_search_logs (user_id, query, matched_director_ids) VALUES (?, ?, ?)')
-    .run(viewer.id, q, matches.map((m) => m.director.id).join(','));
+    .run(viewer.id, q, relevantMatches.map((m) => m.director.id).join(','));
 
   return {
     query: q,
-    matches: matches.map((match) => ({
+    matches: relevantMatches.map((match) => ({
       director: match.director,
       score: match.score,
       reason: match.reason,

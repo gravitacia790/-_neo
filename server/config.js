@@ -33,6 +33,9 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional().or(z.literal('')),
   OPENAI_EMBEDDING_MODEL: z.string().optional().or(z.literal('')),
   OPENAI_ANSWER_MODEL: z.string().optional().or(z.literal('')),
+  AI_MIN_SCORE: z.coerce.number().min(0).max(1).optional(),
+  AI_CANDIDATE_LIMIT: z.coerce.number().int().min(1).max(50).optional(),
+  AI_RESULT_LIMIT: z.coerce.number().int().min(1).max(20).optional(),
 });
 
 function validateConfig(env) {
