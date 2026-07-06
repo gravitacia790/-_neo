@@ -79,6 +79,7 @@ async function listEvents(viewer, page, limit) {
   return {
     events: events.map((e) => {
       const c = creatorMap[e.creator_id];
+      const canSeeCreatorEmail = viewer && (viewer.role === 'admin' || viewer.id === e.creator_id);
       return {
         id: e.id,
         title: e.title,
@@ -87,7 +88,7 @@ async function listEvents(viewer, page, limit) {
         max: e.max_participants,
         creator: c ? c.name : 'Неизвестно',
         creatorSchool: c ? c.school_name || 'Школа не указана' : '',
-        creatorEmail: c ? c.email : '',
+        creatorEmail: c && canSeeCreatorEmail ? c.email : '',
         creatorId: e.creator_id,
         status: e.status || 'published',
         materials: materialsByEvent[String(e.id)] || [],

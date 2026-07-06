@@ -521,6 +521,7 @@ describe('Registration contact privacy', () => {
 
     const creatorList = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${token}`);
     const creatorEvent = creatorList.body.events.find((e) => e.id === eventId);
+    expect(creatorEvent.creatorEmail).toBe('test@school.ru');
     const creatorRegistration = creatorEvent.registrations.find((r) => r.employeeName === 'Private Contact Employee');
     expect(creatorRegistration.phone).toBe('+7 999 111 22 33');
     expect(creatorRegistration.city).toBe('Kolomna');
@@ -534,6 +535,9 @@ describe('Registration contact privacy', () => {
 
     const outsiderList = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${outsiderToken}`);
     const outsiderEvent = outsiderList.body.events.find((e) => e.id === eventId);
+    expect(outsiderEvent).toBeTruthy();
+    expect(outsiderEvent.creator).toBeTruthy();
+    expect(outsiderEvent.creatorEmail).toBe('');
     const outsiderRegistration = outsiderEvent.registrations.find((r) => r.employeeName === 'Private Contact Employee');
     expect(outsiderRegistration.phone).toBe('');
     expect(outsiderRegistration.city).toBe('');

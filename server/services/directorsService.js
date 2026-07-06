@@ -250,8 +250,8 @@ async function listFavorites(viewer, query) {
   var orderBy = sort === 'name' ? 'u.name ASC' : 'f.created_at DESC, u.name ASC';
   const rows = await db
     .prepare(
-      `SELECT u.id, u.email, u.name, u.role,
-              p.experience, p.interests, p.is_mentor, p.photo, p.city,
+      `SELECT u.id, u.email, u.name, u.phone, u.role,
+              p.experience, p.interests, p.telegram, p.is_mentor, p.photo, p.city,
               s.name AS school_name, s.address, s.useful_experience, s.want_to_know,
               r.total_score, r.is_public,
               f.created_at AS favorite_created_at
