@@ -74,7 +74,7 @@ async function initRedisBus() {
 async function init(server) {
   wss = new WebSocketServer({ server, path: '/ws' });
 
-  wss.on('connection', (ws, req) => {
+  wss.on('connection', async (ws, req) => {
     ws.on('error', () => {});
     if (wss.clients.size > MAX_CONNECTIONS) {
       ws.close(1013, 'Server capacity reached');
@@ -93,9 +93,22 @@ async function init(server) {
       return;
     }
 
-    ws._userId = payload.id;
-    ws._userRole = payload.role;
-    require('./lastSeen').touchLastSeen(payload.id);
+    let user;
+    try {
+      user = await db.prepare('SELECT id, role, approval_status FROM users WHERE id = ?').get(payload.id);
+    } catch (err) {
+      logger.warn('ws.auth_lookup_failed', { message: err.message });
+      ws.close(1011, 'Auth lookup failed');
+      return;
+    }
+    if (!user || (user.role !== 'admin' && user.approval_status !== 'approved')) {
+      ws.close(1008, 'Unauthorized');
+      return;
+    }
+
+    ws._userId = user.id;
+    ws._userRole = user.role;
+    require('./lastSeen').touchLastSeen(user.id);
     ws.isAlive = true;
     ws.on('pong', () => {
       ws.isAlive = true;

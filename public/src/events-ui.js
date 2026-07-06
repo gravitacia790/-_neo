@@ -29,7 +29,7 @@ export function buildEventCardHtml(ev, meId) {
 
   var registrations = ev.registrations.length
     ? html`<div class="registration-list"><strong>Записавшиеся:</strong><ul>${ev.registrations.map(function (r) {
-        var canCancel = isCreator || r.registeredBy === meId;
+        var canCancel = !!r.canCancel || isCreator || r.registeredBy === meId;
         return html`<li><span>${r.employeeName}</span><small>${r.schoolName}${r.city ? ' • ' + r.city : ''}${r.phone ? ' • ' + r.phone : ''}</small>${
           canCancel
             ? html`<button class="ghost-btn cancel-inline-btn" data-action="cancel-reg" data-event-id="${ev.id}" data-registration-id="${r.id}">Отменить</button>`

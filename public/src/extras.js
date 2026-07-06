@@ -31,7 +31,7 @@ import { html as h } from './html.js';
           var regs = event.registrations || [];
           var regList = regs.length
             ? h`<div class="registration-list"><strong>Записавшиеся:</strong><ul>${regs.map(function (r) {
-                var canCancel = r.registeredBy === meId;
+                var canCancel = !!r.canCancel || r.registeredBy === meId;
                 return h`<li><span>${r.employeeName}</span><small>${r.schoolName}${r.city ? ' • ' + r.city : ''}${r.phone ? ' • ' + r.phone : ''}</small>${
                   canCancel
                     ? h`<button class="ghost-btn cancel-inline-btn" data-action="cancel-extra-reg" data-category="${category}" data-event-id="${event.id}" data-registration-id="${r.id}">Отменить</button>`

@@ -80,6 +80,22 @@ const regSchema = z.object({
   city: z.string().max(200).optional().default(''),
 });
 
+function serializeExtraRegistration(row, viewer) {
+  const canSeePrivate = viewer && (viewer.role === 'admin' || row.registered_by === viewer.id);
+  return {
+    id: row.id,
+    employeeName: row.employee_name,
+    position: row.position,
+    schoolName: row.school_name,
+    phone: canSeePrivate ? row.phone || '' : '',
+    city: canSeePrivate ? row.city || '' : '',
+    registeredBy: canSeePrivate ? row.registered_by : null,
+    registeredAt: row.registered_at,
+    canViewContacts: !!canSeePrivate,
+    canCancel: !!(viewer && (viewer.role === 'admin' || row.registered_by === viewer.id)),
+  };
+}
+
 router.get(
   '/:category',
   authRequired,
@@ -94,16 +110,7 @@ router.get(
         .all(cat, item.id);
       return {
         ...item,
-        registrations: regs.map((r) => ({
-          id: r.id,
-          employeeName: r.employee_name,
-          position: r.position,
-          schoolName: r.school_name,
-          phone: r.phone || '',
-          city: r.city || '',
-          registeredBy: r.registered_by,
-          registeredAt: r.registered_at,
-        })),
+        registrations: regs.map((r) => serializeExtraRegistration(r, req.user)),
       };
     }));
     res.json({ items });

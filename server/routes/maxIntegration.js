@@ -54,7 +54,7 @@ router.post(
   safe('max')(async (req, res) => {
     const secret = process.env.MAX_WEBHOOK_SECRET;
     if (!secret) return res.status(503).json({ error: 'not_configured' });
-    const provided = req.get('x-max-webhook-secret') || req.query.secret;
+    const provided = req.get('x-max-webhook-secret');
     if (provided !== secret) return res.status(403).json({ error: 'forbidden' });
 
     const parsed = webhookSchema.safeParse(req.body);

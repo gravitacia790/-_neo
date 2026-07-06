@@ -1,4 +1,5 @@
 import { html, nl2br, setHtml } from './html.js';
+import { notify } from './utils.js';
 export function normalizeMaxLink(rawValue) {
   if (!rawValue) return null;
   var value = String(rawValue).trim();
@@ -27,7 +28,7 @@ export function showDirectorDetail(director) {
   var maxHref = normalizeMaxLink(director.telegram);
   var contacts = [];
   if (phoneHref) {
-    contacts.push(html`<a class="contact-btn contact-link" href="${phoneHref}">📞 Позвонить</a>`);
+    contacts.push(html`<button class="contact-btn contact-link" type="button" data-action="call-director" data-phone="${phoneValue}">📞 Позвонить</button>`);
   }
   if (maxHref) {
     contacts.push(html`<a class="detail-btn contact-link" target="_blank" rel="noopener" href="${maxHref}">MAX</a>`);
@@ -76,6 +77,24 @@ export function showDirectorDetail(director) {
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
   modal.querySelector('.close-modal').addEventListener('click', function () { overlay.remove(); });
+  var callBtn = modal.querySelector('[data-action="call-director"]');
+  if (callBtn) {
+    callBtn.addEventListener('click', function () {
+      var dialValue = phoneValue.replace(/[^\d+]/g, '');
+      if (!dialValue) return;
+
+      window.location.href = 'tel:' + dialValue;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(phoneValue).then(function () {
+          notify('Номер скопирован: ' + phoneValue);
+        }).catch(function () {
+          notify('Номер: ' + phoneValue);
+        });
+      } else {
+        notify('Номер: ' + phoneValue);
+      }
+    });
+  }
   bindSwipeBackToClose(overlay, modal);
 }
 

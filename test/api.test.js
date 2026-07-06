@@ -15,6 +15,7 @@ process.env.REDIS_URL = '';
 const { init: initDb } = await import('../server/db.js');
 await initDb();
 const { db } = await import('../server/db.js');
+const { signToken } = await import('../server/auth.js');
 
 const { default: supertest } = await import('supertest');
 const { createApp } = await import('../server.js');
@@ -83,6 +84,32 @@ describe('CSRF', () => {
     expect([200, 401]).toContain(res.status);
     var fromThis = parseCsrfFromSetCookie(res.headers['set-cookie']);
     expect(fromThis || csrfToken).toBeTruthy();
+  });
+
+  it('Р·Р°РєСЂС‹РІР°РµС‚ СЃРѕРµРґРёРЅРµРЅРёРµ СЃ JWT РѕС‚РєР»РѕРЅС‘РЅРЅРѕРіРѕ РґРёСЂРµРєС‚РѕСЂР°', async () => {
+    await db
+      .prepare(
+        `INSERT INTO users (email, password_hash, name, role, approval_status)
+         VALUES (?, ?, ?, 'director', 'rejected')
+         ON CONFLICT (email) DO NOTHING`
+      )
+      .run('ws-rejected@school.ru', 'not-a-real-login-hash', 'WS Rejected');
+    const rejected = await db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get('ws-rejected@school.ru');
+    expect(rejected).toBeTruthy();
+    const rejectedToken = signToken(rejected);
+
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws`, {
+        headers: { Cookie: `token=${encodeURIComponent(rejectedToken)}` },
+      });
+      const t = setTimeout(() => reject(new Error('timeout')), 5000);
+      ws.on('close', (code) => {
+        clearTimeout(t);
+        expect(code).toBe(1008);
+        resolve();
+      });
+      ws.on('error', reject);
+    });
   });
 });
 
@@ -458,6 +485,106 @@ describe('Events', () => {
   });
 });
 
+describe('Registration contact privacy', () => {
+  it('GET /api/events hides private registration contacts from unrelated directors', async () => {
+    const annaLogin = await apiPost('/api/auth/login').send({
+      email: 'anna@school3.ru',
+      password: 'demo1234',
+    });
+    expect(annaLogin.status).toBe(200);
+    const annaToken = annaLogin.body.token;
+
+    const outsiderLogin = await apiPost('/api/auth/login').send({
+      email: 'ekaterina@school22.ru',
+      password: 'demo1234',
+    });
+    expect(outsiderLogin.status).toBe(200);
+    const outsiderToken = outsiderLogin.body.token;
+
+    const create = await apiPost('/api/events').set('Authorization', `Bearer ${token}`).send({
+      title: 'Private Contacts Event',
+      date: '05 September 2026',
+      description: 'event privacy check',
+      max: 10,
+    });
+    expect(create.status).toBe(200);
+    const eventId = create.body.event.id;
+
+    const reg = await apiPost('/api/events/' + eventId + '/register').set('Authorization', `Bearer ${annaToken}`).send({
+      employeeName: 'Private Contact Employee',
+      position: 'Deputy',
+      schoolName: 'Private Contact School',
+      phone: '+7 999 111 22 33',
+      city: 'Kolomna',
+    });
+    expect(reg.status).toBe(200);
+
+    const creatorList = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${token}`);
+    const creatorEvent = creatorList.body.events.find((e) => e.id === eventId);
+    const creatorRegistration = creatorEvent.registrations.find((r) => r.employeeName === 'Private Contact Employee');
+    expect(creatorRegistration.phone).toBe('+7 999 111 22 33');
+    expect(creatorRegistration.city).toBe('Kolomna');
+    expect(creatorRegistration.canViewContacts).toBe(true);
+
+    const ownerList = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${annaToken}`);
+    const ownerEvent = ownerList.body.events.find((e) => e.id === eventId);
+    const ownerRegistration = ownerEvent.registrations.find((r) => r.employeeName === 'Private Contact Employee');
+    expect(ownerRegistration.phone).toBe('+7 999 111 22 33');
+    expect(ownerRegistration.canCancel).toBe(true);
+
+    const outsiderList = await apiGet('/api/events?limit=100').set('Authorization', `Bearer ${outsiderToken}`);
+    const outsiderEvent = outsiderList.body.events.find((e) => e.id === eventId);
+    const outsiderRegistration = outsiderEvent.registrations.find((r) => r.employeeName === 'Private Contact Employee');
+    expect(outsiderRegistration.phone).toBe('');
+    expect(outsiderRegistration.city).toBe('');
+    expect(outsiderRegistration.registeredBy).toBe(null);
+    expect(outsiderRegistration.canViewContacts).toBe(false);
+    expect(outsiderRegistration.canCancel).toBe(false);
+  });
+
+  it('GET /api/extras hides private registration contacts from unrelated directors', async () => {
+    const annaLogin = await apiPost('/api/auth/login').send({
+      email: 'anna@school3.ru',
+      password: 'demo1234',
+    });
+    expect(annaLogin.status).toBe(200);
+    const annaToken = annaLogin.body.token;
+
+    const outsiderLogin = await apiPost('/api/auth/login').send({
+      email: 'ekaterina@school22.ru',
+      password: 'demo1234',
+    });
+    expect(outsiderLogin.status).toBe(200);
+    const outsiderToken = outsiderLogin.body.token;
+
+    const reg = await apiPost('/api/extras/internship/int1/register').set('Authorization', `Bearer ${annaToken}`).send({
+      employeeName: 'Private Extra Employee',
+      position: 'Deputy',
+      schoolName: 'Private Extra School',
+      phone: '+7 999 444 55 66',
+      city: 'Dmitrov',
+    });
+    expect(reg.status).toBe(200);
+
+    const ownerList = await apiGet('/api/extras/internship').set('Authorization', `Bearer ${annaToken}`);
+    const ownerItem = ownerList.body.items.find((item) => item.id === 'int1');
+    const ownerRegistration = ownerItem.registrations.find((r) => r.employeeName === 'Private Extra Employee');
+    expect(ownerRegistration.phone).toBe('+7 999 444 55 66');
+    expect(ownerRegistration.city).toBe('Dmitrov');
+    expect(ownerRegistration.canViewContacts).toBe(true);
+    expect(ownerRegistration.canCancel).toBe(true);
+
+    const outsiderList = await apiGet('/api/extras/internship').set('Authorization', `Bearer ${outsiderToken}`);
+    const outsiderItem = outsiderList.body.items.find((item) => item.id === 'int1');
+    const outsiderRegistration = outsiderItem.registrations.find((r) => r.employeeName === 'Private Extra Employee');
+    expect(outsiderRegistration.phone).toBe('');
+    expect(outsiderRegistration.city).toBe('');
+    expect(outsiderRegistration.registeredBy).toBe(null);
+    expect(outsiderRegistration.canViewContacts).toBe(false);
+    expect(outsiderRegistration.canCancel).toBe(false);
+  });
+});
+
 describe('Extras', () => {
   it('POST/DELETE /api/extras/:category/:eventId/register — регистрирует и отменяет участника', async () => {
     const reg = await apiPost('/api/extras/gl/gl1/register').set('Authorization', `Bearer ${token}`).send({
@@ -783,14 +910,25 @@ describe('MAX integration', () => {
     const nonce = link.body.deepLink.split('start=')[1];
     expect(nonce).toBeTruthy();
 
-    const wrongSecret = await apiPost('/api/integrations/max/webhook?secret=nope').send({
+    const querySecret = await apiPost('/api/integrations/max/webhook?secret=wh-secret').send({
+      update_type: 'bot_started',
+      payload: nonce,
+      user: { user_id: 555001, username: 'tester' },
+    });
+    expect(querySecret.status).toBe(403);
+
+    const wrongSecret = await apiPost('/api/integrations/max/webhook')
+      .set('x-max-webhook-secret', 'nope')
+      .send({
       update_type: 'bot_started',
       payload: nonce,
       user: { user_id: 555001, username: 'tester' },
     });
     expect(wrongSecret.status).toBe(403);
 
-    const hook = await apiPost('/api/integrations/max/webhook?secret=wh-secret').send({
+    const hook = await apiPost('/api/integrations/max/webhook')
+      .set('x-max-webhook-secret', 'wh-secret')
+      .send({
       update_type: 'bot_started',
       payload: nonce,
       user: { user_id: 555001, username: 'tester' },
@@ -813,7 +951,9 @@ describe('MAX integration', () => {
     process.env.MAX_WEBHOOK_SECRET = 'wh-secret';
     process.env.MAX_API_BASE = 'http://127.0.0.1:1';
 
-    const hook = await apiPost('/api/integrations/max/webhook?secret=wh-secret').send({
+    const hook = await apiPost('/api/integrations/max/webhook')
+      .set('x-max-webhook-secret', 'wh-secret')
+      .send({
       update_type: 'bot_started',
       payload: 'totally-invalid-nonce',
       user: { user_id: 555002, username: 'ghost' },

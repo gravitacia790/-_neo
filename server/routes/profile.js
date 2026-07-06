@@ -15,11 +15,7 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
-    const ext = path
-      .extname(file.originalname)
-      .toLowerCase()
-      .replace(/[^.a-z0-9]/g, '');
-    cb(null, `u${req.user.id}_${Date.now()}${ext || '.jpg'}`);
+    cb(null, `u${req.user.id}_${Date.now()}.upload`);
   },
 });
 const upload = multer({
@@ -31,10 +27,10 @@ const upload = multer({
   },
 });
 
-function hasAllowedImageSignature(buffer) {
+function getAllowedImageExtension(buffer) {
   if (!buffer || buffer.length < 12) return false;
   // JPEG: FF D8 FF
-  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true;
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return '.jpg';
   // PNG: 89 50 4E 47 0D 0A 1A 0A
   if (
     buffer[0] === 0x89 &&
@@ -46,7 +42,7 @@ function hasAllowedImageSignature(buffer) {
     buffer[6] === 0x1a &&
     buffer[7] === 0x0a
   ) {
-    return true;
+    return '.png';
   }
   // WEBP: "RIFF....WEBP"
   if (
@@ -59,7 +55,7 @@ function hasAllowedImageSignature(buffer) {
     buffer[10] === 0x42 &&
     buffer[11] === 0x50
   ) {
-    return true;
+    return '.webp';
   }
   return false;
 }
@@ -140,7 +136,8 @@ router.post('/photo', authRequired, (req, res, _next) => {
       if (!req.file) return res.status(400).json({ error: 'Файл не получен' });
       const absPath = path.join(UPLOAD_DIR, req.file.filename);
       const fileBuffer = fs.readFileSync(absPath);
-      if (!hasAllowedImageSignature(fileBuffer)) {
+      const safeExt = getAllowedImageExtension(fileBuffer);
+      if (!safeExt) {
         try {
           fs.unlinkSync(absPath);
         } catch (_) {
@@ -148,7 +145,9 @@ router.post('/photo', authRequired, (req, res, _next) => {
         }
         return res.status(400).json({ error: 'Некорректный формат файла' });
       }
-      res.json(await savePhoto(req.user.id, req.file.filename, UPLOAD_DIR));
+      const safeFileName = path.basename(req.file.filename, '.upload') + safeExt;
+      fs.renameSync(absPath, path.join(UPLOAD_DIR, safeFileName));
+      res.json(await savePhoto(req.user.id, safeFileName, UPLOAD_DIR));
     })().catch((dbErr) => {
       console.error('[profile] POST /photo:', dbErr.message);
       if (!res.headersSent) res.status(500).json({ error: 'Внутренняя ошибка сервера' });

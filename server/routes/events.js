@@ -37,7 +37,7 @@ router.get(
   safe('events')(async (req, res) => {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
-    res.json(await listEvents(page, limit));
+    res.json(await listEvents(req.user, page, limit));
   })
 );
 

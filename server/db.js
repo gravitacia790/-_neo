@@ -138,7 +138,7 @@ async function seedDemoDirectors() {
         type: 'Гимназия',
         building_count: 2,
         useful_experience:
-          '12 лет успешного руководства школой с высокими образовательными результатами (ТОП-50 школ МО).\nВнедрение системы наставничества для молодых педагогов, снижение текучести кадров на 35%.\nЭксперт по подготовке к государственной аккредитации и лицензированию.\nОрг��низация профильных инженерных и IT-классов в сотрудничеств�� с вузами.\nГрантовая деятельность: привлечено более 8 млн ₽ на модернизацию лабораторий.',
+          '12 лет успешного руководства школой с высокими образовательными результатами (ТОП-50 школ МО).\nВнедрение системы наставничества для молодых педагогов, снижение текучести кадров на 35%.\nЭксперт по подготовке к государственной аккредитации и лицензированию.\nОрганизация профильных инженерных и IT-классов в сотрудничестве с вузами.\nГрантовая деятельность: привлечено более 8 млн ₽ на модернизацию лабораторий.',
         want_to_know:
           'Цифровая трансформация школ: эффективные AI-инструменты для управленческого учёта.\nКак выстроить систему проектного обучения, интегрированную с региональными предприятиями.\nПрактики ментального здоровья педагогов: программы профилактики выгорания.\nКейсы по созданию автономии школы и внебюджетной деятельности.',
       },
@@ -148,6 +148,7 @@ async function seedDemoDirectors() {
           'Руководитель пилотного проекта «Школа полного дня» в Химках (охват 780 учеников).\nФиналист Всероссийского конкурса «Директор года – 2024».\nРазработала и внедрила систему «Цифровой помощник классного руководителя».',
         interests:
           'Современная педагогическая литература\nМедитация и осознанность для педагогов\nГрафический дизайн\nВелотуризм\nВолонтёрство в просветительских проектах',
+        telegram: 'elena.gromova',
         strengths: [
           { name: 'Стратегическое планирование', val: 9.5 },
           { name: 'Управление персоналом и мотивация', val: 9.2 },
@@ -195,6 +196,7 @@ async function seedDemoDirectors() {
         experience:
           'Успешно прошла 2 аккредитации, создала ресурсный класс для детей с ОВЗ.\nРуководитель муниципальной инновационной площадки по инклюзии.',
         interests: 'Психология\nЧтение\nСадоводство',
+        telegram: 'anna.vorontsova',
         strengths: [
           { name: 'Стратегическое планирование', val: 8 },
           { name: 'Работа с родителями', val: 9 },
@@ -230,7 +232,8 @@ async function seedDemoDirectors() {
         is_mentor: 0,
         experience:
           'Создал IT-лицей с нуля, выиграл грант на оборудование лабораторий.\nПобедитель конкурса инновационных школ Московской области.',
-        interests: 'Программирование\nШахм��ты\nРобототехника',
+        interests: 'Программирование\nШахматы\nРобототехника',
+        telegram: 'dmitry.gromov',
         strengths: [
           { name: 'Цифровая трансформация', val: 9 },
           { name: 'Лидерство', val: 8.5 },
@@ -291,8 +294,8 @@ async function seedDemoDirectors() {
        RETURNING id`
     );
     const insertProfile = trx.prepare(
-      `INSERT INTO profiles (user_id, experience, interests, is_mentor, consent, city)
-       VALUES (?, ?, ?, ?, 1, ?)`
+      `INSERT INTO profiles (user_id, experience, interests, telegram, is_mentor, consent, city)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`
     );
     const insertStrength = trx.prepare('INSERT INTO profile_strengths (user_id, name, value) VALUES (?, ?, ?)');
     const insertSkill = trx.prepare('INSERT INTO profile_skills (user_id, name, level) VALUES (?, ?, ?)');
@@ -310,7 +313,14 @@ async function seedDemoDirectors() {
 
       const info = await insertUser.run(d.email, hash, d.name, d.phone);
       const uid = info.lastInsertRowid;
-      await insertProfile.run(uid, d.profile.experience, d.profile.interests, d.profile.is_mentor, d.city);
+      await insertProfile.run(
+        uid,
+        d.profile.experience,
+        d.profile.interests,
+        d.profile.telegram || '',
+        d.profile.is_mentor,
+        d.city
+      );
       for (var sgi = 0; sgi < d.profile.strengths.length; sgi++) {
         var sg = d.profile.strengths[sgi];
         await insertStrength.run(uid, sg.name, sg.val);

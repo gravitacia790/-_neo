@@ -8,7 +8,24 @@ async function getSchoolName(userId) {
   return row ? row.name : 'Школа не указана';
 }
 
-async function listEvents(page, limit) {
+function serializeRegistration(row, viewer, event) {
+  const canSeePrivate =
+    viewer && (viewer.role === 'admin' || event.creator_id === viewer.id || row.registered_by === viewer.id);
+  return {
+    id: row.id,
+    employeeName: row.employee_name,
+    position: row.position,
+    schoolName: row.school_name,
+    phone: canSeePrivate ? row.phone || '' : '',
+    city: canSeePrivate ? row.city || '' : '',
+    registeredBy: canSeePrivate ? row.registered_by : null,
+    registeredAt: row.registered_at,
+    canViewContacts: !!canSeePrivate,
+    canCancel: !!(viewer && (viewer.role === 'admin' || event.creator_id === viewer.id || row.registered_by === viewer.id)),
+  };
+}
+
+async function listEvents(viewer, page, limit) {
   const offset = (page - 1) * limit;
   const totalRow = await db.prepare("SELECT COUNT(*) AS c FROM events WHERE deleted_at IS NULL AND status = 'published'").get();
   const total = Number(totalRow.c);
@@ -28,16 +45,7 @@ async function listEvents(page, limit) {
   const regsByEvent = {};
   for (const r of allRegs) {
     if (!regsByEvent[r.event_id]) regsByEvent[r.event_id] = [];
-    regsByEvent[r.event_id].push({
-      id: r.id,
-      employeeName: r.employee_name,
-      position: r.position,
-      schoolName: r.school_name,
-      phone: r.phone || '',
-      city: r.city || '',
-      registeredBy: r.registered_by,
-      registeredAt: r.registered_at,
-    });
+    regsByEvent[r.event_id].push(r);
   }
   const cPlaceholders = creatorIds.map(() => '?').join(',');
   const materialRows = await db
@@ -83,7 +91,7 @@ async function listEvents(page, limit) {
         creatorId: e.creator_id,
         status: e.status || 'published',
         materials: materialsByEvent[String(e.id)] || [],
-        registrations: regsByEvent[e.id] || [],
+        registrations: (regsByEvent[e.id] || []).map((r) => serializeRegistration(r, viewer, e)),
       };
     }),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
