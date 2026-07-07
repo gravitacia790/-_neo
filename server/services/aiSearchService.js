@@ -106,7 +106,6 @@ function buildAiProfileText(parts) {
     'Школа: ' + normalizeText(base.school_name),
     'Город: ' + normalizeText(base.city || base.address),
     'Может помочь, реализованный опыт: ' + normalizeText(base.useful_experience || base.experience),
-    'Может помочь, реализованный опыт: ' + normalizeText(base.useful_experience || base.experience),
     'Профессиональные навыки: ' + normalizeText(skills),
     'Сильные стороны: ' + normalizeText(strengths),
     'Теги опыта: ' + normalizeText(tags),
@@ -272,7 +271,40 @@ async function explainMatches(query, matches) {
   return [];
 }
 
-async function validateRelevantMatches(query, matches) {
+// ЭТАП 1 двухэтапного анализа: LLM интерпретирует запрос — формулирует
+// суть задачи и ключевые темы с синонимами («травля» → «буллинг», «конфликт»).
+// Темы расширяют и семантический (embedding), и лексический поиск.
+// При любом сбое возвращает null — поиск идёт по исходному запросу, как раньше.
+async function extractIntent(query) {
+  try {
+    const data = await requestOpenAi('responses', {
+      model: ANSWER_MODEL,
+      input:
+        'Ты анализируешь запрос директора школы, который ищет коллег с уже реализованным релевантным опытом. ' +
+        'Определи: (1) какую задачу хочет решить пользователь; (2) ключевые темы для поиска — 5-12 слов на русском, ' +
+        'включая сами термины из запроса, их синонимы и близкие понятия (например, для «травля» добавь «буллинг», «конфликт»). ' +
+        'Ответ верни строго одним JSON-объектом без пояснений: {"task": "краткая формулировка задачи", "keywords": ["слово1", "слово2"]}.\n\n' +
+        'Запрос: ' + query,
+    });
+    const outputText = data.output_text || (data.output && data.output.map((o) => JSON.stringify(o)).join('\n')) || '';
+    const jsonMatch = outputText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (typeof parsed.task !== 'string' || !Array.isArray(parsed.keywords)) return null;
+    const task = normalizeText(parsed.task).slice(0, 300);
+    const keywords = parsed.keywords
+      .filter((k) => typeof k === 'string' && normalizeText(k).length >= 2)
+      .map((k) => normalizeText(k))
+      .slice(0, 15);
+    if (!task || !keywords.length) return null;
+    return { task, keywords };
+  } catch (err) {
+    logger.warn('ai.intent_failed', { message: err.message });
+    return null;
+  }
+}
+
+async function validateRelevantMatches(query, intent, matches) {
   if (!matches.length) return [];
   const compact = matches.map((match, index) => ({
     rank: index + 1,
@@ -290,7 +322,9 @@ async function validateRelevantMatches(query, matches) {
       'Не выдумывай факты и не добавляй кандидатов, которых нет в списке. ' +
       'Ответ верни строго JSON массивом объектов {"rank": number, "relevant": boolean, "reason": string}. ' +
       'reason для relevant=true должен коротко объяснять, какой опыт совпал. Для relevant=false reason можно оставить пустым.\n\n' +
-      'Запрос: ' + query + '\n\nКандидаты:\n' + JSON.stringify(compact),
+      'Запрос: ' + query +
+      (intent ? '\nИнтерпретация задачи: ' + intent.task + '\nКлючевые темы: ' + intent.keywords.join(', ') : '') +
+      '\n\nКандидаты:\n' + JSON.stringify(compact),
   });
   const outputText = data.output_text || (data.output && data.output.map((o) => JSON.stringify(o)).join('\n')) || '';
   try {
@@ -309,7 +343,14 @@ async function searchDirectors(viewer, query) {
     err.status = 400;
     throw err;
   }
-  const queryEmbedding = await createEmbedding(q);
+  // Этап 1: понять задачу и расширить её синонимами. При сбое intent = null,
+  // и поиск работает по исходному тексту запроса (запасной режим).
+  const intent = await extractIntent(q);
+  const semanticQuery = intent ? q + '\nЗадача: ' + intent.task + '\nТемы: ' + intent.keywords.join(', ') : q;
+  const lexicalQuery = intent ? q + ' ' + intent.keywords.join(' ') : q;
+
+  // Этап 2: семантическое ранжирование по расширенному запросу.
+  const queryEmbedding = await createEmbedding(semanticQuery);
   const rows = await db
     .prepare(
       `SELECT aip.user_id, aip.source_text, aip.embedding_json
@@ -327,7 +368,7 @@ async function searchDirectors(viewer, query) {
   const ranked = rows
     .map((row) => {
       const embedding = parseEmbeddingJson(row.embedding_json);
-      const lexicalMatches = getLexicalMatches(q, row.source_text || '');
+      const lexicalMatches = getLexicalMatches(lexicalQuery, row.source_text || '');
       return {
         userId: row.user_id,
         sourceText: row.source_text || '',
@@ -358,7 +399,7 @@ async function searchDirectors(viewer, query) {
   let validations = [];
   let validationError = null;
   try {
-    validations = await validateRelevantMatches(q, matches);
+    validations = await validateRelevantMatches(q, intent, matches);
   } catch (err) {
     validationError = err;
     logger.warn('ai.validation_failed', { message: err.message });
@@ -389,6 +430,7 @@ async function searchDirectors(viewer, query) {
 
   return {
     query: q,
+    intent: intent || null,
     matches: relevantMatches.map((match) => ({
       director: match.director,
       score: match.score,

@@ -600,6 +600,110 @@ describe('AI search', () => {
     expect(res.body.error).toContain('OPENAI_API_KEY');
     if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
   });
+
+  it('двухэтапный поиск: интерпретация запроса попадает в ответ и расширяет подбор', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    const realFetch = global.fetch;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+
+    // Готовим AI-индекс напрямую: демо-директор с опытом по теме запроса
+    const director = await db
+      .prepare("SELECT id FROM users WHERE role = 'director' AND approval_status = 'approved' AND email <> 'test@school.ru' LIMIT 1")
+      .get();
+    expect(director).toBeTruthy();
+    await db.prepare('DELETE FROM director_ai_profiles WHERE user_id = ?').run(director.id);
+    await db
+      .prepare(
+        `INSERT INTO director_ai_profiles (user_id, source_hash, source_text, embedding_json, updated_at)
+         VALUES (?, ?, ?, ?, NOW())`
+      )
+      .run(
+        director.id,
+        'test-hash',
+        'Может помочь, реализованный опыт: внедрила программу против буллинга и медиацию конфликтов',
+        JSON.stringify([1, 0, 0])
+      );
+
+    // Мок OpenAI: embeddings → фиксированный вектор; responses → интерпретация или валидация
+    global.fetch = async (url, opts) => {
+      const body = String((opts && opts.body) || '');
+      let payload;
+      if (String(url).includes('/embeddings')) {
+        payload = { data: [{ embedding: [1, 0, 0] }] };
+      } else if (body.includes('JSON-объектом')) {
+        // Этап 1: интерпретация запроса (синоним «буллинг» для «травля»)
+        payload = { output_text: '{"task": "остановить травлю в школе", "keywords": ["травля", "буллинг", "конфликт", "медиация"]}' };
+      } else {
+        // Этап 2: валидация кандидатов
+        payload = { output_text: '[{"rank": 1, "relevant": true, "reason": "Есть опыт программы против буллинга"}]' };
+      }
+      return { ok: true, status: 200, json: async () => payload };
+    };
+
+    try {
+      const res = await apiPost('/api/ai/search').set('Authorization', `Bearer ${token}`).send({
+        query: 'Как остановить травлю среди учеников?',
+      });
+      expect(res.status).toBe(200);
+      // Интерпретация возвращается пользователю
+      expect(res.body.intent).toBeTruthy();
+      expect(res.body.intent.task).toBe('остановить травлю в школе');
+      expect(res.body.intent.keywords).toContain('буллинг');
+      // Директор найден: лексическое совпадение по синониму «буллинг» из intent,
+      // хотя в самом запросе этого слова нет
+      expect(res.body.matches.length).toBeGreaterThan(0);
+      expect(res.body.matches[0].director.id).toBe(director.id);
+      expect(res.body.matches[0].reason).toContain('буллинг');
+    } finally {
+      global.fetch = realFetch;
+      if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+      else delete process.env.OPENAI_API_KEY;
+      await db.prepare('DELETE FROM director_ai_profiles WHERE user_id = ?').run(director.id);
+    }
+  });
+
+  it('сбой интерпретации не ломает поиск (запасной режим без intent)', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    const realFetch = global.fetch;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+
+    const director = await db
+      .prepare("SELECT id FROM users WHERE role = 'director' AND approval_status = 'approved' AND email <> 'test@school.ru' LIMIT 1")
+      .get();
+    await db.prepare('DELETE FROM director_ai_profiles WHERE user_id = ?').run(director.id);
+    await db
+      .prepare(
+        `INSERT INTO director_ai_profiles (user_id, source_hash, source_text, embedding_json, updated_at)
+         VALUES (?, ?, ?, ?, NOW())`
+      )
+      .run(director.id, 'test-hash-2', 'Может помочь, реализованный опыт: запуск инженерных классов', JSON.stringify([1, 0, 0]));
+
+    global.fetch = async (url, opts) => {
+      const body = String((opts && opts.body) || '');
+      if (String(url).includes('/embeddings')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ embedding: [1, 0, 0] }] }) };
+      }
+      if (body.includes('JSON-объектом')) {
+        // Этап 1 падает — сервис должен продолжить без интерпретации
+        return { ok: false, status: 500, json: async () => ({ error: { message: 'boom' } }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ output_text: '[{"rank": 1, "relevant": true, "reason": "Опыт инженерных классов"}]' }) };
+    };
+
+    try {
+      const res = await apiPost('/api/ai/search').set('Authorization', `Bearer ${token}`).send({
+        query: 'Нужен опыт запуска инженерных классов',
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.intent).toBeNull();
+      expect(res.body.matches.length).toBeGreaterThan(0);
+    } finally {
+      global.fetch = realFetch;
+      if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+      else delete process.env.OPENAI_API_KEY;
+      await db.prepare('DELETE FROM director_ai_profiles WHERE user_id = ?').run(director.id);
+    }
+  });
 });
 
 describe('Extras', () => {

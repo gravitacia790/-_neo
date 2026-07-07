@@ -229,13 +229,19 @@ export function renderAiDirectors() {
         if (requestId !== aiSearchRequestId || APPSTATE.getDirectors().segment !== 'ai' || !document.body.contains(results)) return;
         var matches = resp.matches || [];
         APPSTATE.setDirectorsCache(matches.map(function (m) { return m.director; }));
+        var intentBlock = resp.intent
+          ? html`<div class="ai-intent">
+              <div><strong>Как AI понял задачу:</strong> ${resp.intent.task}</div>
+              <div class="ai-intent-keywords">Темы поиска: ${(resp.intent.keywords || []).join(', ')}</div>
+            </div>`
+          : '';
         if (!matches.length) {
-          setHtml(results, html`<div class="list-state">Подходящих коллег пока не найдено. Попробуйте описать задачу другими словами.</div>`);
+          setHtml(results, html`${intentBlock}<div class="list-state">Подходящих коллег пока не найдено. Попробуйте описать задачу другими словами.</div>`);
           return;
         }
         setHtml(
           results,
-          html`${matches.map(function (m) {
+          html`${intentBlock}${matches.map(function (m) {
             return html`<div class="ai-match-card">
               <div class="ai-match-reason"><strong>Почему подходит:</strong> ${m.reason || 'Профиль близок к вашему запросу по смыслу.'}</div>
               ${renderDirectorCard(m.director, { compact: true })}

@@ -145,6 +145,22 @@
   gap: 12px;
 }
 
+.ai-intent {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(161, 49, 58, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.ai-intent-keywords {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 .ai-match-reason {
   border-left: 3px solid var(--crimson);
   padding: 10px 12px;
