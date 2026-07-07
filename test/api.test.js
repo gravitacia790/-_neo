@@ -662,6 +662,78 @@ describe('AI search', () => {
     }
   });
 
+  it('директор с темой только в «Хочет узнать» не попадает в выдачу', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    const realFetch = global.fetch;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+
+    const directors = await db
+      .prepare("SELECT id FROM users WHERE role = 'director' AND approval_status = 'approved' AND email <> 'test@school.ru' ORDER BY id LIMIT 2")
+      .all();
+    expect(directors.length).toBe(2);
+    const seeker = directors[0]; // хочет узнать про инженерные классы (опыта нет)
+    const expert = directors[1]; // реально запускал инженерные классы
+    await db.prepare('DELETE FROM director_ai_profiles WHERE user_id = ? OR user_id = ?').run(seeker.id, expert.id);
+    await db
+      .prepare(
+        `INSERT INTO director_ai_profiles (user_id, source_hash, source_text, embedding_json, updated_at)
+         VALUES (?, ?, ?, ?, NOW())`
+      )
+      .run(
+        seeker.id,
+        'hash-seeker',
+        // Старый формат индекса: поле «Хочет узнать» ещё внутри source_text
+        'Может помочь, реализованный опыт: организация питания\nХочет узнать: как запустить инженерные классы',
+        JSON.stringify([1, 0, 0])
+      );
+    await db
+      .prepare(
+        `INSERT INTO director_ai_profiles (user_id, source_hash, source_text, embedding_json, updated_at)
+         VALUES (?, ?, ?, ?, NOW())`
+      )
+      .run(expert.id, 'hash-expert', 'Может помочь, реализованный опыт: запустил инженерные классы с нуля', JSON.stringify([1, 0, 0]));
+
+    global.fetch = async (url, opts) => {
+      const body = String((opts && opts.body) || '');
+      let payload;
+      if (String(url).includes('/embeddings')) {
+        payload = { data: [{ embedding: [1, 0, 0] }] };
+      } else if (body.includes('JSON-объектом')) {
+        payload = { output_text: '{"task": "запустить инженерные классы", "keywords": ["инженерные", "классы", "профильное обучение"]}' };
+      } else {
+        // Валидатор: одобряет только кандидата с реализованным опытом.
+        const req = JSON.parse(body);
+        const candidates = JSON.parse(String(req.input).split('Кандидаты:\n')[1]);
+        // source кандидатов не должен содержать поле «Хочет узнать»
+        candidates.forEach((c) => expect(c.source).not.toContain('Хочет узнать'));
+        const verdicts = candidates.map((c) => ({
+          rank: c.rank,
+          relevant: c.source.includes('запустил инженерные классы'),
+          reason: c.source.includes('запустил инженерные классы') ? 'Реализованный опыт запуска инженерных классов' : '',
+        }));
+        payload = { output_text: JSON.stringify(verdicts) };
+      }
+      return { ok: true, status: 200, json: async () => payload };
+    };
+
+    try {
+      const res = await apiPost('/api/ai/search').set('Authorization', `Bearer ${token}`).send({
+        query: 'Нужен коллега с опытом запуска инженерных классов',
+      });
+      expect(res.status).toBe(200);
+      const ids = res.body.matches.map((m) => m.director.id);
+      // Эксперт найден, «желающий узнать» — нет, несмотря на лексическое
+      // совпадение «инженерные классы» в его старой записи индекса
+      expect(ids).toContain(expert.id);
+      expect(ids).not.toContain(seeker.id);
+    } finally {
+      global.fetch = realFetch;
+      if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+      else delete process.env.OPENAI_API_KEY;
+      await db.prepare('DELETE FROM director_ai_profiles WHERE user_id = ? OR user_id = ?').run(seeker.id, expert.id);
+    }
+  });
+
   it('сбой интерпретации не ломает поиск (запасной режим без intent)', async () => {
     const previousKey = process.env.OPENAI_API_KEY;
     const realFetch = global.fetch;

@@ -96,6 +96,9 @@ async function fetchProfileRows(userId) {
   return { base, strengths, skills, tags };
 }
 
+// В индекс попадают ТОЛЬКО поля, подтверждающие компетенцию.
+// «Хочет узнать» и «Личные интересы» сознательно исключены: совпадение
+// по ним означает, что директор сам ищет этот опыт, а не обладает им.
 function buildAiProfileText(parts) {
   const base = parts.base;
   const strengths = parts.strengths.map((s) => s.name).join(', ');
@@ -109,10 +112,18 @@ function buildAiProfileText(parts) {
     'Профессиональные навыки: ' + normalizeText(skills),
     'Сильные стороны: ' + normalizeText(strengths),
     'Теги опыта: ' + normalizeText(tags),
-    'Хочет узнать: ' + normalizeText(base.want_to_know),
-    'Личные интересы: ' + normalizeText(base.interests),
   ]
     .filter((line) => line.replace(/^[^:]+:\s*/, '').trim())
+    .join('\n');
+}
+
+// Удаляет из уже проиндексированного текста поля, не подтверждающие опыт.
+// Нужно для старых записей индекса, созданных до исключения этих полей
+// (пока администратор не запустил переиндексацию).
+function getMatchableText(sourceText) {
+  return String(sourceText || '')
+    .split('\n')
+    .filter((line) => !/^(Хочет узнать|Личные интересы):/.test(line.trim()))
     .join('\n');
 }
 
@@ -317,7 +328,8 @@ async function validateRelevantMatches(query, intent, matches) {
     input:
       'Ты помогаешь директорам школ найти коллег с уже реализованным релевантным опытом. ' +
       'Для каждого кандидата реши, подходит ли он под запрос пользователя. ' +
-      'Ставь relevant=true только если в source явно есть опыт, навык, тег или задача, близкие к запросу. ' +
+      'Ставь relevant=true только если в source явно есть РЕАЛИЗОВАННЫЙ опыт, навык, тег или решённая задача, близкие к запросу. ' +
+      'ВАЖНО: поля «Хочет узнать» и «Личные интересы» означают, что кандидат сам ищет этот опыт и НЕ обладает им — совпадение только по ним даёт relevant=false. ' +
       'Если связь слабая, общая или кандидат просто похож по профессии, ставь relevant=false. ' +
       'Не выдумывай факты и не добавляй кандидатов, которых нет в списке. ' +
       'Ответ верни строго JSON массивом объектов {"rank": number, "relevant": boolean, "reason": string}. ' +
@@ -368,10 +380,11 @@ async function searchDirectors(viewer, query) {
   const ranked = rows
     .map((row) => {
       const embedding = parseEmbeddingJson(row.embedding_json);
-      const lexicalMatches = getLexicalMatches(lexicalQuery, row.source_text || '');
+      const matchableText = getMatchableText(row.source_text);
+      const lexicalMatches = getLexicalMatches(lexicalQuery, matchableText);
       return {
         userId: row.user_id,
-        sourceText: row.source_text || '',
+        sourceText: matchableText,
         score: cosineSimilarity(queryEmbedding, embedding),
         lexicalMatches,
       };
@@ -405,14 +418,23 @@ async function searchDirectors(viewer, query) {
     logger.warn('ai.validation_failed', { message: err.message });
   }
   let relevantMatches = [];
+  const rejectedIds = new Set();
   validations.forEach((item) => {
     const match = matches[Number(item.rank) - 1];
-    if (!match || item.relevant !== true) return;
+    if (!match) return;
+    if (item.relevant !== true) {
+      rejectedIds.add(match.director.id);
+      return;
+    }
     if (item.reason) match.reason = normalizeText(item.reason).slice(0, 500);
     relevantMatches.push(match);
   });
+  // Лексическое совпадение возвращает кандидата, только если валидатор
+  // его явно НЕ отклонил (раньше отказ LLM перебивался, что давало
+  // ложные рекомендации с уверенной подписью).
   matches.forEach((match) => {
     if (!match.lexicalMatches || !match.lexicalMatches.length) return;
+    if (rejectedIds.has(match.director.id)) return;
     if (relevantMatches.some((item) => item.director.id === match.director.id)) return;
     relevantMatches.push(match);
   });
