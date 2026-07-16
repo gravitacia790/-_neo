@@ -23,6 +23,12 @@ JWT_SECRET=<random 48+ chars>
 DATABASE_URL=postgres://...
 ADMIN_EMAIL=admin@example.ru
 ADMIN_PASSWORD=<strong 10+ chars>
+SMTP_HOST=smtp.example.ru
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=<full mailbox address>
+SMTP_PASS=<app password>
+MAIL_FROM=Гравитация <full mailbox address>
 TRUST_PROXY=1
 REDIS_URL=redis://...
 REDIS_ENABLED=true
@@ -31,6 +37,10 @@ DB_POOL_MAX=20
 API_RATE_LIMIT_MAX=600
 WS_MAX_CONNECTIONS=2000
 ```
+
+SMTP-параметры обязательны для рабочего восстановления пароля. В Render они
+помечены как `sync: false`: их нужно задать в настройках Environment вручную,
+не добавляя пароль в Git.
 
 ## 3) Multi-instance validation (only when using multiple instances)
 

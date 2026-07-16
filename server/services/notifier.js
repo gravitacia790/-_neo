@@ -17,6 +17,13 @@ let transporterInitialized = false;
 function getTransporter() {
   if (transporterInitialized) return transporter;
   transporterInitialized = true;
+  // Тесты должны оставаться детерминированными даже если разработчик
+  // хранит рабочие SMTP-настройки в локальном .env. Отправка почты
+  // проверяется отдельной командой `npm run mail:test`.
+  if (process.env.NODE_ENV === 'test') {
+    transporter = null;
+    return null;
+  }
   const host = process.env.SMTP_HOST;
   if (!host || !nodemailer) {
     transporter = null;
@@ -34,7 +41,7 @@ function getTransporter() {
 }
 
 function emailConfigured() {
-  return !!(process.env.SMTP_HOST && nodemailer);
+  return process.env.NODE_ENV !== 'test' && !!(process.env.SMTP_HOST && nodemailer);
 }
 
 async function sendEmail(to, subject, text, html) {
