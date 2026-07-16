@@ -24,7 +24,7 @@ function extractToken(req) {
 }
 
 async function initRedisBus() {
-  if (!process.env.REDIS_URL) {
+  if (process.env.REDIS_ENABLED === 'false' || !process.env.REDIS_URL) {
     redisEnabled = false;
     return;
   }
@@ -239,12 +239,9 @@ async function close() {
 }
 
 async function insertNotification(userId, type, title, message) {
-  await db.prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)').run(
-    userId,
-    type,
-    title,
-    message
-  );
+  await db
+    .prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)')
+    .run(userId, type, title, message);
 }
 
 async function insertNotificationsForUsers(userIds, type, title, message) {
@@ -262,10 +259,12 @@ async function insertNotificationsForUsers(userIds, type, title, message) {
 
 async function broadcastAndInsert(eventType, title, message, excludeUserId) {
   const exclude = excludeUserId || 0;
-  await db.prepare(
-    `INSERT INTO notifications (user_id, type, title, message)
+  await db
+    .prepare(
+      `INSERT INTO notifications (user_id, type, title, message)
      SELECT id, ?, ?, ? FROM users WHERE id != ?`
-  ).run(eventType, title, message, exclude);
+    )
+    .run(eventType, title, message, exclude);
   broadcast({ type: eventType, title, message, timestamp: new Date().toISOString() });
 }
 

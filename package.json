@@ -1,5 +1,5 @@
 {
-  "name": "gravitacia-neo",
+  "name": "gravitacia",
   "version": "2.0.0",
   "description": "Гравитация — профессиональное сообщество директоров школ Московской области",
   "main": "server.js",
@@ -14,7 +14,7 @@
     "db:migrate:status": "node server/migrate.js status",
     "check:buttons-db": "node scripts/check-button-db-coverage.js",
     "mail:test": "node scripts/test-mail.js",
-    "test:e2e": "vite build && playwright test",
+    "test:e2e": "vite build && node scripts/run-e2e.js",
     "test": "vitest run test",
     "test:ci": "vitest run --reporter=verbose",
     "test:coverage": "vitest run --coverage",
@@ -54,7 +54,6 @@
     "pg-mem": "^3.0.5",
     "rate-limit-redis": "^4.2.2",
     "redis": "^5.8.2",
-    "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
     "vite": "^8.0.16",
     "web-push": "^3.6.7",

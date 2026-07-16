@@ -1,7 +1,12 @@
+const path = require('path');
 const { defineConfig, devices } = require('@playwright/test');
 
 const e2ePort = Number(process.env.E2E_PORT || 3100);
 const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
+const e2eEnvScript = path.join(__dirname, 'scripts', 'e2e-env.js');
+const e2eServerPath = path.join(__dirname, 'server.js');
+const e2eServerCommand = `${process.execPath} -r "${e2eEnvScript}" "${e2eServerPath}"`;
+const managedByRunner = process.env.E2E_MANAGED_SERVER === 'true';
 
 module.exports = defineConfig({
   testDir: './e2e',
@@ -26,18 +31,21 @@ module.exports = defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'node server.js',
-    url: `${e2eBaseUrl}/health`,
-    reuseExistingServer: false,
-    timeout: 120000,
-    env: {
-      NODE_ENV: 'test',
-      PORT: String(e2ePort),
-      JWT_SECRET: 'playwright-jwt-secret-at-least-32-characters-long',
-      ADMIN_EMAIL: 'admin@test.ru',
-      ADMIN_PASSWORD: 'admin123',
-      REDIS_URL: '',
-    },
-  },
+  webServer: managedByRunner
+    ? undefined
+    : {
+        command: e2eServerCommand,
+        url: `${e2eBaseUrl}/health`,
+        reuseExistingServer: false,
+        timeout: 120000,
+        env: {
+          NODE_ENV: 'test',
+          PORT: String(e2ePort),
+          JWT_SECRET: 'playwright-jwt-secret-at-least-32-characters-long',
+          ADMIN_EMAIL: 'admin@test.ru',
+          ADMIN_PASSWORD: 'admin123',
+          REDIS_ENABLED: 'false',
+          REDIS_URL: '',
+        },
+      },
 });

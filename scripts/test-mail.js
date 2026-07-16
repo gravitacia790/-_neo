@@ -30,9 +30,9 @@ async function main() {
   const now = new Date().toISOString();
   const result = await sendEmail(
     to,
-    'Test email — Gravitacia NEO',
-    'This is a test email from Gravitacia NEO. Time: ' + now,
-    '<p>This is a test email from <strong>Gravitacia NEO</strong>.</p><p>Time: ' + now + '</p>'
+    'Test email — Гравитация',
+    'This is a test email from Гравитация. Time: ' + now,
+    '<p>This is a test email from <strong>Гравитация</strong>.</p><p>Time: ' + now + '</p>'
   );
 
   if (!result.sent) {

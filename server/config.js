@@ -18,6 +18,7 @@ const envSchema = z.object({
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(5000),
   API_RATE_LIMIT_MAX: z.coerce.number().int().min(100).max(10000).default(600),
   WS_MAX_CONNECTIONS: z.coerce.number().int().min(100).max(50000).default(2000),
+  REDIS_ENABLED: z.enum(['true', 'false']).default('true'),
   REDIS_URL: z.string().optional().or(z.literal('')),
   WS_REDIS_CHANNEL: z.string().default('ws:broadcast'),
   SMTP_HOST: z.string().optional().or(z.literal('')),

@@ -3,7 +3,7 @@ const logger = require('./logger');
 let redisModulePromise = null;
 
 function hasRedisUrl(config) {
-  return !!(config && config.REDIS_URL);
+  return !!(config && config.REDIS_ENABLED !== 'false' && config.REDIS_URL);
 }
 
 async function loadRedisModule() {

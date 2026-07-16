@@ -20,6 +20,8 @@ public/js/app.bundle.js.map
 # Сгенерированные артефакты
 docs/*
 !docs/RUNBOOK.md
+!docs/GO_LIVE_1500.md
+!docs/PROJECT_CONTEXT.md
 !docs/ТЕХНИЧЕСКОЕ_ЗАДАНИЕ.md
 archive/
 coverage/

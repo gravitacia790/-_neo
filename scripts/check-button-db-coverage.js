@@ -48,6 +48,19 @@ const controls = [
   { id: 'createEventBtn', apiMethod: 'createEvent', kind: 'db' },
   { id: 'loadMoreBtn', apiMethod: 'getDirectors', kind: 'db' },
   { id: 'closeCalDetail', apiMethod: null, kind: 'local' },
+  { id: 'registrationSubmitBtn', apiMethod: 'registerForEvent', kind: 'db' },
+  { id: 'eventEditSubmitBtn', apiMethod: 'updateEvent', kind: 'db' },
+  { id: 'aiReindexAllBtn', apiMethod: 'reindexAllAi', kind: 'db' },
+  { id: 'saveAdminEventBtn', apiMethod: 'updateEvent', kind: 'db' },
+  { id: 'resetAdminEventBtn', apiMethod: null, kind: 'local' },
+  { id: 'resetRegistrationFiltersBtn', apiMethod: null, kind: 'local' },
+  { id: 'exportRegistrationsBtn', apiMethod: null, kind: 'local' },
+  { id: 'saveMaterialBtn', apiMethod: 'createAdminMaterial', kind: 'db' },
+  { id: 'resetMaterialBtn', apiMethod: null, kind: 'local' },
+  { id: 'resetMaterialFiltersBtn', apiMethod: null, kind: 'local' },
+  { id: 'sendAnnouncementBtn', apiMethod: 'sendAdminAnnouncement', kind: 'db' },
+  { id: 'maxLinkBtn', apiMethod: 'maxCreateLink', kind: 'db' },
+  { id: 'maxUnlinkBtn', apiMethod: 'maxUnlink', kind: 'db' },
   { selector: '[data-action="reg"]', apiMethod: 'registerForEvent', kind: 'db' },
   { selector: '[data-action="del"]', apiMethod: 'deleteEvent', kind: 'db' },
   { selector: '[data-action="favorite"]', apiMethod: 'toggleDirectorFavorite', kind: 'db' },
@@ -86,11 +99,17 @@ const API_ENDPOINTS = {
   createEvent: 'POST /api/events',
   registerForEvent: 'POST /api/events/:id/register',
   deleteEvent: 'DELETE /api/events/:id',
+  updateEvent: 'PUT /api/events/:id',
+  reindexAllAi: 'POST /api/ai/reindex-all',
   registerForExtra: 'POST /api/extras/:category/:eventId/register',
   getNotifications: 'GET /api/notifications',
   markAllNotificationsRead: 'PUT /api/notifications/read-all',
   sendMessage: 'POST /api/messages',
   getMessages: 'GET /api/messages',
+  maxCreateLink: 'POST /api/integrations/max/link',
+  maxUnlink: 'POST /api/integrations/max/unlink',
+  createAdminMaterial: 'POST /api/admin/materials',
+  sendAdminAnnouncement: 'POST /api/admin/announcements',
 };
 
 const KNOWN_DB_BACKED_ENDPOINTS = new Set([
@@ -99,12 +118,17 @@ const KNOWN_DB_BACKED_ENDPOINTS = new Set([
   'GET /api/directors',
   'GET /api/directors/mentors',
   'POST /api/directors/:id/favorite',
+  'POST /api/events/:id/register',
+  'POST /api/ai/reindex-all',
+  'POST /api/integrations/max/link',
+  'POST /api/integrations/max/unlink',
+  'POST /api/admin/materials',
+  'POST /api/admin/announcements',
 ]);
 
 function parseRoutePrefixes() {
   const serverJs = read(path.join(ROOT, 'server.js'));
-  const re =
-    /app\.use\(\s*['"]([^'"]+)['"]\s*,[\s\S]*?require\(['"]\.\/server\/routes\/([^'"]+)['"]\)[\s\S]*?\)/g;
+  const re = /app\.use\(\s*['"]([^'"]+)['"]\s*,[\s\S]*?require\(['"]\.\/server\/routes\/([^'"]+)['"]\)[\s\S]*?\)/g;
   const prefixes = new Map();
   let m;
   while ((m = re.exec(serverJs))) {
@@ -247,7 +271,17 @@ function buildEndpointCoverage() {
         }
       }
       if (!dbBacked) {
-        const namespaces = ['messages', 'notifications', 'directors', 'events', 'auth', 'profile', 'ratings', 'admin', 'extras'];
+        const namespaces = [
+          'messages',
+          'notifications',
+          'directors',
+          'events',
+          'auth',
+          'profile',
+          'ratings',
+          'admin',
+          'extras',
+        ];
         for (const ns of namespaces) {
           if (!new RegExp(`safe\\(['"]${ns}['"]\\)`).test(call.callText)) continue;
           const handlerBody = extractSafeHandlerBody(call.callText, ns);
@@ -370,4 +404,3 @@ function run() {
 }
 
 run();
-

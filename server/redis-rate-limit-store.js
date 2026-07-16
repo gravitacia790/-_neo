@@ -1,5 +1,5 @@
 const logger = require('./logger');
-const { createRedisClient } = require('./redis');
+const { createRedisClient, hasRedisUrl } = require('./redis');
 
 let storeModulePromise = null;
 
@@ -12,7 +12,7 @@ async function loadRedisStoreCtor() {
 }
 
 async function createRateLimitStore(config) {
-  if (!config || !config.REDIS_URL) return null;
+  if (!hasRedisUrl(config)) return null;
   try {
     const client = await createRedisClient({ REDIS_URL: config.REDIS_URL }, 'rate-limit');
     const RedisStoreCtor = await loadRedisStoreCtor();

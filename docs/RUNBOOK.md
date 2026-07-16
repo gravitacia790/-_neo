@@ -1,6 +1,8 @@
-# RUNBOOK - Gravitacia NEO
+# RUNBOOK — Гравитация
 
 Operational guide for local development, production deployment, checks, and basic incident handling.
+
+Product context and the canonical terminology are in [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md). This runbook describes the operational implementation, not a change to the closed-club access policy.
 
 ## 1. Purpose
 
@@ -30,6 +32,8 @@ Production:
 
 The app serves the static frontend from `public/` and the API from the same Express process.
 
+The product is a closed club for school directors of Moscow Region. Launch access is invitation-only and the scale target is up to 1500 registered accounts, not 1500 concurrent users. The current technical flow is a registration request followed by administrator approval; mandatory invite-token validation is not currently implemented.
+
 ## 3. Environment
 
 Create `.env` from `.env.example` and set the real values.
@@ -55,10 +59,13 @@ VAPID_SUBJECT=mailto:admin@example.ru
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 REDIS_URL=redis://localhost:6379
+REDIS_ENABLED=true
 WS_REDIS_CHANNEL=ws:broadcast
 ```
 
 Production startup fails intentionally when required secrets are missing or weak.
+
+Set `REDIS_ENABLED=false` only for local or single-instance operation without Redis. For multiple app instances, shared rate limiting and WebSocket delivery require a reachable Redis and a consistent `REDIS_URL`.
 
 ## 4. Local Start
 
@@ -156,7 +163,10 @@ Run before deploy:
 ```bash
 npm run format:check
 npm run lint
+npm run check:buttons-db
 npm test
+npm run test:coverage
+npm run build
 npm run test:e2e
 ```
 
@@ -164,7 +174,7 @@ CI is configured in `.github/workflows/ci.yml`.
 
 ## 8. Deployment
 
-Render is configured through `render.yaml`.
+Render is configured through `render.yaml` as a temporary test environment. It is not the planned permanent production platform.
 
 Recommended flow:
 
@@ -174,7 +184,7 @@ Recommended flow:
 4. Confirm `DATABASE_URL` is connected from the managed PostgreSQL database.
 5. Deploy.
 6. Check `/health` and `/ready`.
-7. Log in as the seeded admin.
+7. Log in with a deliberately created test/admin account. Do not enable demo seeding unless the environment is explicitly for testing.
 
 For another platform, use:
 
@@ -195,7 +205,7 @@ Profile photos are currently written to:
 public/uploads/
 ```
 
-For production with multiple instances, ephemeral disks, or frequent redeploys, move uploads to object storage such as S3, Cloudflare R2, Supabase Storage, or another persistent storage provider.
+Render and other temporary/ephemeral environments are suitable for testing only while uploads remain on local disk. For permanent production, move uploads to object storage such as S3, Cloudflare R2, Supabase Storage, or another persistent storage provider before accepting real user content.
 
 Back up:
 
@@ -264,12 +274,14 @@ MAX messenger integration (account linking + code/notification delivery):
 - `/ready` returns `200`
 - `npm run format:check` passes
 - `npm run lint` passes
+- `npm run check:buttons-db` passes
 - `npm test` passes
+- `npm run test:coverage` passes with the agreed threshold and no critical area is untested
+- `npm run build` passes
 - `npm run test:e2e` passes
-- Redis configured and reachable (`REDIS_URL`)
-- WS multi-instance delivery verified (Pub/Sub)
-- HTTP load smoke completed (`npm run load:smoke:http -- <url> 1000 50`)
+- if more than one app instance is used: Redis configured and reachable (`REDIS_ENABLED=true`, `REDIS_URL`), and WS multi-instance delivery verified (Pub/Sub)
+- HTTP load smoke completed in the target environment (`npm run load:smoke:http -- <url> 1000 50`)
 
-Extended release-readiness checklist for 1500 users:
+Extended release-readiness checklist for up to 1500 registered accounts:
 
 - [`docs/GO_LIVE_1500.md`](GO_LIVE_1500.md)

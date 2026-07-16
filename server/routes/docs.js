@@ -6,7 +6,7 @@ const adminRequired = require('../middleware/adminRequired');
 const SPEC = {
   openapi: '3.0.3',
   info: {
-    title: 'Гравитация NEO API',
+    title: 'Гравитация API',
     version: '2.0.0',
     description: 'API профессионального сообщества директоров школ Московской области',
   },
@@ -249,7 +249,7 @@ router.use(
   adminRequired,
   swaggerUi.serve,
   swaggerUi.setup(SPEC, {
-    customSiteTitle: 'Гравитация NEO API',
+  customSiteTitle: 'Гравитация API',
     customCss: '.swagger-ui .topbar { display: none }',
   })
 );
