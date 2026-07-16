@@ -14,7 +14,7 @@ function reindexAiProfileInBackground(userId) {
 }
 
 async function loadProfile(userId) {
-  const user = await db.prepare('SELECT id, email, name, phone FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT id, email, name, phone, phone_public FROM users WHERE id = ?').get(userId);
   const profile = (await db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId)) || {};
   const strengths = await db.prepare('SELECT name, value FROM profile_strengths WHERE user_id = ?').all(userId);
   const skills = await db.prepare('SELECT name, level FROM profile_skills WHERE user_id = ?').all(userId);
@@ -24,6 +24,7 @@ async function loadProfile(userId) {
     name: user.name,
     email: user.email,
     phone: user.phone || '',
+    phonePublic: !!user.phone_public,
     telegram: profile.telegram || '',
     experience: profile.experience || '',
     interests: profile.interests || '',
@@ -64,8 +65,15 @@ async function loadSchool(userId) {
 }
 
 async function saveProfile(userId, profile) {
-  if (profile.phone !== undefined) {
-    await db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(profile.phone, userId);
+  if (profile.phone !== undefined || profile.phonePublic !== undefined) {
+    const current = await db.prepare('SELECT phone, phone_public FROM users WHERE id = ?').get(userId);
+    await db
+      .prepare('UPDATE users SET phone = ?, phone_public = ? WHERE id = ?')
+      .run(
+        profile.phone !== undefined ? profile.phone : current.phone || '',
+        profile.phonePublic !== undefined ? (profile.phonePublic ? true : false) : !!current.phone_public,
+        userId
+      );
   }
 
   const exists = await db.prepare('SELECT user_id FROM profiles WHERE user_id = ?').get(userId);

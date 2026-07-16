@@ -17,6 +17,7 @@ export function collectFormData() {
   });
   return {
     phone: document.getElementById('directorPhone').value.trim(),
+    phonePublic: document.getElementById('phonePublicCheckbox').checked,
     telegram: document.getElementById('directorMax').value.trim(),
     experience: document.getElementById('uniqueExperience').value.trim(),
     interests: document.getElementById('personalInterests').value.trim(),

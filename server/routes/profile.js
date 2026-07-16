@@ -62,6 +62,7 @@ function getAllowedImageExtension(buffer) {
 
 const profileSchema = z.object({
   phone: z.string().max(40).optional(),
+  phonePublic: z.boolean().optional(),
   telegram: z.string().max(100).optional(),
   experience: z.string().max(5000).optional().default(''),
   interests: z.string().max(5000).optional().default(''),

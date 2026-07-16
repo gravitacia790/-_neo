@@ -9,7 +9,7 @@ const BASE_FROM_SQL = `
 `;
 
 const SELECT_SQL = `
-  SELECT u.id, u.email, u.name, u.phone, u.role,
+  SELECT u.id, u.email, u.name, u.phone, u.phone_public, u.role,
          p.experience, p.interests, p.telegram, p.is_mentor, p.photo, p.city,
          s.name AS school_name, s.address, s.useful_experience, s.want_to_know,
          r.total_score, r.is_public
@@ -72,6 +72,17 @@ async function serializeDirector(row, viewer, preloaded) {
   const isAdmin = viewer && viewer.role === 'admin';
   const isOwner = viewer && viewer.id === row.id;
   const canSeeEmail = isAdmin || isOwner;
+  const phoneRequestStatus =
+    preloaded && preloaded.phoneRequestStatusMap
+      ? preloaded.phoneRequestStatusMap[row.id] || null
+      : viewer && !isOwner
+        ? ((await db
+            .prepare(
+              'SELECT status FROM phone_visibility_requests WHERE requester_id = ? AND target_id = ?'
+            )
+            .get(viewer.id, row.id)) || {}).status || null
+        : null;
+  const canSeePhone = isAdmin || isOwner || !!row.phone_public || phoneRequestStatus === 'approved';
   const ratingVisible = isAdmin || isOwner || !!row.is_public;
   const strengths = preloaded ? preloaded.strengths : await fetchStrengths(row.id);
   const skills = preloaded ? preloaded.skills : await fetchSkills(row.id);
@@ -84,7 +95,8 @@ async function serializeDirector(row, viewer, preloaded) {
     email: canSeeEmail ? row.email : null,
     school: row.school_name || 'Школа не указана',
     city,
-    phone: row.phone || null,
+    phone: canSeePhone ? row.phone || null : null,
+    phoneRequestStatus,
     telegram: row.telegram || null,
     useful: row.useful_experience || row.experience || '',
     wantToKnow: row.want_to_know || '',
@@ -185,6 +197,24 @@ async function loadProfileMeta(directorIds) {
   return { strengthsMap, skillsMap, tagsMap };
 }
 
+async function loadPhoneRequestMeta(viewerId, directorIds) {
+  const statusMap = {};
+  if (!viewerId || !directorIds.length) return statusMap;
+
+  const placeholders = directorIds.map(() => '?').join(',');
+  const rows = await db
+    .prepare(
+      `SELECT target_id, status
+       FROM phone_visibility_requests
+       WHERE requester_id = ? AND target_id IN (${placeholders})`
+    )
+    .all(...[viewerId].concat(directorIds));
+  rows.forEach((row) => {
+    statusMap[row.target_id] = row.status;
+  });
+  return statusMap;
+}
+
 async function listDirectors(viewer, query) {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(query.limit, 10) || 20, 1), 100);
@@ -201,6 +231,7 @@ async function listDirectors(viewer, query) {
     ids
   );
   const { strengthsMap, skillsMap, tagsMap } = await loadProfileMeta(ids);
+  const phoneRequestStatusMap = await loadPhoneRequestMeta(viewer && viewer.id, ids);
 
   const directors = [];
   for (const row of rows) {
@@ -211,6 +242,7 @@ async function listDirectors(viewer, query) {
         strengths: strengthsMap[row.id] || [],
         skills: skillsMap[row.id] || [],
         tags: tagsMap[row.id] || [],
+        phoneRequestStatusMap,
       })
     );
   }
@@ -228,6 +260,7 @@ async function listMentors(viewer) {
     ids
   );
   const { strengthsMap, skillsMap, tagsMap } = await loadProfileMeta(ids);
+  const phoneRequestStatusMap = await loadPhoneRequestMeta(viewer && viewer.id, ids);
   const mentors = [];
   for (const row of rows) {
     mentors.push(
@@ -237,6 +270,7 @@ async function listMentors(viewer) {
         strengths: strengthsMap[row.id] || [],
         skills: skillsMap[row.id] || [],
         tags: tagsMap[row.id] || [],
+        phoneRequestStatusMap,
       })
     );
   }
@@ -250,7 +284,7 @@ async function listFavorites(viewer, query) {
   var orderBy = sort === 'name' ? 'u.name ASC' : 'f.created_at DESC, u.name ASC';
   const rows = await db
     .prepare(
-      `SELECT u.id, u.email, u.name, u.phone, u.role,
+      `SELECT u.id, u.email, u.name, u.phone, u.phone_public, u.role,
               p.experience, p.interests, p.telegram, p.is_mentor, p.photo, p.city,
               s.name AS school_name, s.address, s.useful_experience, s.want_to_know,
               r.total_score, r.is_public,
@@ -272,6 +306,7 @@ async function listFavorites(viewer, query) {
   });
   const ids = rows.map((r) => r.id);
   const { strengthsMap, skillsMap, tagsMap } = await loadProfileMeta(ids);
+  const phoneRequestStatusMap = await loadPhoneRequestMeta(viewer && viewer.id, ids);
   const favorites = [];
   for (const row of rows) {
     favorites.push(
@@ -281,6 +316,7 @@ async function listFavorites(viewer, query) {
         strengths: strengthsMap[row.id] || [],
         skills: skillsMap[row.id] || [],
         tags: tagsMap[row.id] || [],
+        phoneRequestStatusMap,
       })
     );
   }

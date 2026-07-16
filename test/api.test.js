@@ -325,6 +325,49 @@ describe('Profile', () => {
     expect(res.status).toBe(200);
   });
 
+  it('телефон директора скрыт по умолчанию и раскрывается только по его выбору', async () => {
+    const ownProfile = await apiGet('/api/profile').set('Authorization', `Bearer ${token}`);
+    expect(ownProfile.status).toBe(200);
+    expect(ownProfile.body.profile.phonePublic).toBe(false);
+
+    const target = await db.prepare('SELECT id, phone FROM users WHERE email = ?').get('test@school.ru');
+    const peer = await db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get('anna@school3.ru');
+    const peerToken = signToken(peer);
+    const profilePayload = {
+      phone: target.phone,
+      experience: ownProfile.body.profile.experience,
+      interests: ownProfile.body.profile.interests,
+      isMentor: ownProfile.body.profile.isMentor,
+      consent: ownProfile.body.profile.consent,
+      strengths: (ownProfile.body.profile.strengths || []).map((item) => ({
+        name: item.name,
+        val: item.value,
+      })),
+      skills: ownProfile.body.profile.skills || [],
+      tags: ownProfile.body.profile.tags || [],
+    };
+
+    const hidden = await apiGet('/api/directors/' + target.id).set('Authorization', `Bearer ${peerToken}`);
+    expect(hidden.status).toBe(200);
+    expect(hidden.body.director.phone).toBe(null);
+
+    const open = await apiPut('/api/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...profilePayload, phonePublic: true });
+    expect(open.status).toBe(200);
+    expect(open.body.profile.phonePublic).toBe(true);
+
+    const visible = await apiGet('/api/directors/' + target.id).set('Authorization', `Bearer ${peerToken}`);
+    expect(visible.status).toBe(200);
+    expect(visible.body.director.phone).toBe(target.phone);
+
+    const close = await apiPut('/api/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...profilePayload, phonePublic: false });
+    expect(close.status).toBe(200);
+    expect(close.body.profile.phonePublic).toBe(false);
+  });
+
   it('GET/PUT /api/profile/school — сохраняет и возвращает школу', async () => {
     var save = await apiPut('/api/profile/school').set('Authorization', `Bearer ${token}`).send({
       name: 'School API Test',
@@ -343,6 +386,48 @@ describe('Profile', () => {
     expect(load.status).toBe(200);
     expect(load.body.school.name).toBe('School API Test');
     expect(load.body.school.students).toBe(777);
+  });
+
+  it('директор может запросить номер, а владелец — подтвердить точечный доступ', async () => {
+    const target = await db.prepare('SELECT id, email, name, role, phone FROM users WHERE email = ?').get('elena@school11.ru');
+    const requester = await db.prepare('SELECT id FROM users WHERE email = ?').get('test@school.ru');
+    await db.prepare('UPDATE users SET phone_public = FALSE WHERE id = ?').run(target.id);
+    const targetToken = signToken(target);
+
+    const request = await apiPost('/api/phone-visibility-requests/' + target.id)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(request.status).toBe(200);
+    expect(request.body.status).toBe('pending');
+
+    const duplicate = await apiPost('/api/phone-visibility-requests/' + target.id)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(duplicate.status).toBe(200);
+    expect(duplicate.body.status).toBe('pending');
+    expect(duplicate.body.requestId).toBe(request.body.requestId);
+
+    const targetNotification = await db
+      .prepare('SELECT type, entity_id FROM notifications WHERE user_id = ? AND type = ? ORDER BY id DESC LIMIT 1')
+      .get(target.id, 'phone_visibility_request');
+    expect(targetNotification.type).toBe('phone_visibility_request');
+    expect(Number(targetNotification.entity_id)).toBe(Number(request.body.requestId));
+
+    const approve = await apiPut('/api/phone-visibility-requests/' + request.body.requestId)
+      .set('Authorization', `Bearer ${targetToken}`)
+      .send({ decision: 'approved' });
+    expect(approve.status).toBe(200);
+    expect(approve.body.status).toBe('approved');
+
+    const visible = await apiGet('/api/directors/' + target.id).set('Authorization', `Bearer ${token}`);
+    expect(visible.status).toBe(200);
+    expect(visible.body.director.phone).toBe(target.phone);
+
+    const responseNotification = await db
+      .prepare('SELECT type, message FROM notifications WHERE user_id = ? AND type = ? ORDER BY id DESC LIMIT 1')
+      .get(requester.id, 'phone_visibility_response');
+    expect(responseNotification.type).toBe('phone_visibility_response');
+    expect(responseNotification.message).toContain('разрешил');
   });
 });
 

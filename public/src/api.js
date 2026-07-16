@@ -138,6 +138,12 @@ export var API = (function () {
     toggleDirectorFavorite: function (directorId) {
       return request('POST', '/api/directors/' + directorId + '/favorite');
     },
+    requestPhoneNumber: function (directorId) {
+      return request('POST', '/api/phone-visibility-requests/' + directorId);
+    },
+    respondPhoneNumberRequest: function (requestId, decision) {
+      return request('PUT', '/api/phone-visibility-requests/' + requestId, { decision: decision });
+    },
     searchAiDirectors: function (query) {
       return request('POST', '/api/ai/search', { query: query });
     },

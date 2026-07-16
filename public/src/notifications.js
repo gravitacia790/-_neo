@@ -3,6 +3,7 @@ import { SHELLDOM } from './shell-dom.js';
 import { getUiErrorMessage } from './utils.js';
 import { API } from './api.js';
 import { renderEvents } from './events.js';
+import { renderDirectors } from './directors.js';
 import { notify } from './utils.js';
 import { html as h } from './html.js';
 import { WS } from './ws.js';
@@ -41,6 +42,23 @@ export var NOTIF = (function () {
     OVERLAY.toggle(SHELLDOM.byId('notifBell'), SHELLDOM.byId('notifDropdown'), false);
   }
 
+  function renderNotificationItem(n) {
+    var actions = '';
+    if (n.type === 'phone_visibility_request' && n.entity_id) {
+      actions = h`<div class="notif-actions"><button type="button" data-notification-action="approved" data-request-id="${n.entity_id}">Разрешить</button><button type="button" data-notification-action="rejected" data-request-id="${n.entity_id}">Отклонить</button></div>`;
+    }
+    return h`<div class="notif-item${n.read ? '' : ' notif-unread'}" data-id="${n.id}"><div class="notif-title">${n.title}</div><div class="notif-msg">${n.message}</div>${actions}<div class="notif-time">${n.created_at}</div></div>`;
+  }
+
+  function markItemRead(item) {
+    if (!item || !item.classList.contains('notif-unread')) return Promise.resolve();
+    var id = parseInt(item.getAttribute('data-id'), 10);
+    return API.markNotificationRead([id]).then(function () {
+      item.classList.remove('notif-unread');
+      setUnread(Math.max(0, getUnread() - 1));
+    });
+  }
+
   function loadList() {
     var list = document.getElementById('notifList');
     if (!list) return;
@@ -51,17 +69,34 @@ export var NOTIF = (function () {
         list.innerHTML = '<div class="dropdown-empty-state">Нет уведомлений</div>';
         return;
       }
-      var html = resp.items.map(function (n) {
-        return h`<div class="notif-item${n.read ? '' : ' notif-unread'}" data-id="${n.id}"><div class="notif-title">${n.title}</div><div class="notif-msg">${n.message}</div><div class="notif-time">${n.created_at}</div></div>`;
-      }).join('');
+      var html = resp.items.map(renderNotificationItem).join('');
       list.innerHTML = html;
+      list.querySelectorAll('[data-notification-action]').forEach(function (button) {
+        button.addEventListener('click', function (event) {
+          event.stopPropagation();
+          var item = button.closest('.notif-item');
+          var requestId = parseInt(button.getAttribute('data-request-id'), 10);
+          var decision = button.getAttribute('data-notification-action');
+          list.querySelectorAll('[data-notification-action][data-request-id="' + requestId + '"]').forEach(function (action) {
+            action.disabled = true;
+          });
+          API.respondPhoneNumberRequest(requestId, decision)
+            .then(function (result) {
+              var actions = item ? item.querySelector('.notif-actions') : null;
+              if (actions) actions.textContent = result.status === 'approved' ? 'Номер разрешён' : 'Запрос отклонён';
+              return markItemRead(item);
+            })
+            .catch(function (err) {
+              list.querySelectorAll('[data-notification-action][data-request-id="' + requestId + '"]').forEach(function (action) {
+                action.disabled = false;
+              });
+              notify(err.message || 'Не удалось обработать запрос');
+            });
+        });
+      });
       list.querySelectorAll('.notif-item.notif-unread').forEach(function (el) {
         el.addEventListener('click', function () {
-          var id = parseInt(el.getAttribute('data-id'), 10);
-          API.markNotificationRead([id]).then(function () {
-            el.classList.remove('notif-unread');
-            setUnread(Math.max(0, getUnread() - 1));
-          });
+          markItemRead(el).catch(function () {});
         });
       });
     }).catch(function (err) {
@@ -79,6 +114,10 @@ export var NOTIF = (function () {
       if (eventsPanel && eventsPanel.classList.contains('active')) {
         renderEvents();
       }
+    }
+    if (data.type === 'phone_visibility_response') {
+      var directorsPanel = document.getElementById('directors');
+      if (directorsPanel && directorsPanel.classList.contains('active')) renderDirectors(false);
     }
   }
 

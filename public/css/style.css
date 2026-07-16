@@ -1393,6 +1393,39 @@ body.nav-sheet-open {
   color: var(--text-secondary);
 }
 
+.form-hint {
+  margin: -8px 0 14px 32px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.notif-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.notif-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--crimson);
+  color: var(--white);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.notif-actions button:last-child {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.notif-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 /* ── Buttons ── */
 .add-btn {
   background: linear-gradient(180deg, rgba(161,49,58,0.08) 0%, rgba(255,255,255,0.92) 100%);

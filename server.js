@@ -151,6 +151,7 @@ function createApp(options) {
   app.use('/api/materials', require('./server/routes/materials'));
   app.use('/api/ratings', require('./server/routes/ratings'));
   app.use('/api/notifications', require('./server/routes/notifications'));
+  app.use('/api/phone-visibility-requests', require('./server/routes/phoneVisibility'));
   app.use('/api/push', require('./server/routes/push'));
   app.use('/api/admin', require('./server/routes/admin'));
   app.use('/api/messages', messagesSendLimiter, require('./server/routes/messages'));

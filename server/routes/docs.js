@@ -45,6 +45,11 @@ const SPEC = {
           email: { type: 'string' },
           school: { type: 'string' },
           city: { type: 'string' },
+          phone: {
+            type: 'string',
+            nullable: true,
+            description: 'Телефон возвращается только владельцу, администратору или при публичном разрешении владельца.',
+          },
           isMentor: { type: 'boolean' },
           photo: { type: 'string', nullable: true },
           rating: {

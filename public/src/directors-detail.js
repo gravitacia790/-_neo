@@ -1,5 +1,6 @@
 import { html, nl2br, setHtml } from './html.js';
 import { notify } from './utils.js';
+import { API } from './api.js';
 export function normalizeMaxLink(rawValue) {
   if (!rawValue) return null;
   var value = String(rawValue).trim();
@@ -32,6 +33,13 @@ export function showDirectorDetail(director) {
   }
   if (maxHref) {
     contacts.push(html`<a class="detail-btn contact-link" target="_blank" rel="noopener" href="${maxHref}">MAX</a>`);
+  }
+  if (!phoneValue) {
+    contacts.push(
+      director.phoneRequestStatus === 'pending'
+        ? html`<button class="contact-btn contact-link" type="button" disabled>Запрос отправлен</button>`
+        : html`<button class="contact-btn contact-link" type="button" data-action="request-phone-detail">Запросить номер телефона</button>`
+    );
   }
   var contactsHtml = contacts.length ? contacts : html`<div class="info-text">Контакты пока не указаны</div>`;
 
@@ -93,6 +101,24 @@ export function showDirectorDetail(director) {
       } else {
         notify('Номер: ' + phoneValue);
       }
+    });
+  }
+  var requestPhoneBtn = modal.querySelector('[data-action="request-phone-detail"]');
+  if (requestPhoneBtn) {
+    requestPhoneBtn.addEventListener('click', function () {
+      requestPhoneBtn.disabled = true;
+      API.requestPhoneNumber(director.id)
+        .then(function (result) {
+          if (result.status === 'approved') {
+            notify('Номер уже доступен. Обновите список директоров.');
+          } else {
+            notify('Запрос отправлен. Директор получит уведомление.');
+          }
+        })
+        .catch(function (err) {
+          requestPhoneBtn.disabled = false;
+          notify(err.message || 'Не удалось отправить запрос на номер');
+        });
     });
   }
   bindSwipeBackToClose(overlay, modal);

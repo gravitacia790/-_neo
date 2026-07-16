@@ -14,10 +14,12 @@ export function bindDirectorActions(container) {
     var phone = director.phone ? String(director.phone).trim() : '';
     var canCall = !!phone;
     var maxLink = typeof normalizeMaxLink === 'function' ? normalizeMaxLink(director.telegram) : null;
-    if (!canCall && !maxLink) {
-      notify('Контакты директора пока не указаны');
-      return;
-    }
+    var phoneRequestPending = director.phoneRequestStatus === 'pending';
+    var phoneRequestAction = !canCall
+      ? phoneRequestPending
+        ? html`<button class="contact-actions__item" type="button" disabled><span>Запрос отправлен</span><strong>Ожидается подтверждение</strong></button>`
+        : html`<button class="contact-actions__item contact-actions__item--primary" type="button" data-contact-action="request-phone"><span>Запросить номер телефона</span><strong>Директор получит уведомление</strong></button>`
+      : '';
 
     var name = director.name || 'коллегой';
     var school = director.school ? html`<div class="contact-actions__school">${director.school}</div>` : '';
@@ -30,7 +32,7 @@ export function bindDirectorActions(container) {
 
     var overlay = showModal(
       'Связаться за опытом',
-      html`<div class="contact-actions" id="contactActionsModal"><p class="contact-actions__lead">Выберите удобный способ связаться с ${name}, чтобы обсудить практику, управленческий опыт или конкретную задачу.</p>${school}<div class="contact-actions__list">${phoneAction}${maxAction}</div></div>`
+      html`<div class="contact-actions" id="contactActionsModal"><p class="contact-actions__lead">Выберите удобный способ связаться с ${name}, чтобы обсудить практику, управленческий опыт или конкретную задачу.</p>${school}<div class="contact-actions__list">${phoneAction}${phoneRequestAction}${maxAction}</div></div>`
     );
 
     var phoneBtn = overlay.querySelector('[data-contact-action="phone"]');
@@ -38,6 +40,27 @@ export function bindDirectorActions(container) {
       phoneBtn.addEventListener('click', function () {
         window.location.href = 'tel:' + phone.replace(/[^\d+]/g, '');
         closeContactModal(overlay);
+      });
+    }
+    var requestPhoneBtn = overlay.querySelector('[data-contact-action="request-phone"]');
+    if (requestPhoneBtn) {
+      requestPhoneBtn.addEventListener('click', function () {
+        requestPhoneBtn.disabled = true;
+        API.requestPhoneNumber(director.id)
+          .then(function (result) {
+            if (result.status === 'approved') {
+              notify('Номер уже доступен. Обновляем карточку директора.');
+              closeContactModal(overlay);
+              renderDirectors(false);
+              return;
+            }
+            notify('Запрос отправлен. Директор получит уведомление и сможет его подтвердить.');
+            closeContactModal(overlay);
+          })
+          .catch(function (err) {
+            requestPhoneBtn.disabled = false;
+            notify(err.message || 'Не удалось отправить запрос на номер');
+          });
       });
     }
     var maxBtn = overlay.querySelector('[data-contact-action="max"]');

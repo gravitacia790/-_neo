@@ -238,10 +238,10 @@ async function close() {
   return wsClosePromise;
 }
 
-async function insertNotification(userId, type, title, message) {
+async function insertNotification(userId, type, title, message, entityId) {
   await db
-    .prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)')
-    .run(userId, type, title, message);
+    .prepare('INSERT INTO notifications (user_id, type, title, message, entity_id) VALUES (?, ?, ?, ?, ?)')
+    .run(userId, type, title, message, entityId || null);
 }
 
 async function insertNotificationsForUsers(userIds, type, title, message) {

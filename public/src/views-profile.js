@@ -6,7 +6,7 @@ export function renderProfileView() {
     '<div class="form-group"><label class="form-label">Фото директора</label><input type="file" id="directorPhoto" accept="image/jpeg,image/png,image/webp"><div id="photoPreview" class="photo-preview"></div></div>' +
     '<div class="form-group"><label class="form-label">ФИО полностью</label><input type="text" id="directorName" placeholder="Иванов Иван Иванович"></div>' +
     '<div class="form-group"><label class="form-label">Email</label><input type="email" id="directorEmail" placeholder="director@school.ru"></div>' +
-    '<div class="form-group"><label class="form-label">Телефон</label><input type="tel" id="directorPhone" placeholder="+7 (999) 999-99-99"></div>' +
+    '<div class="form-group"><label class="form-label">Телефон</label><input type="tel" id="directorPhone" placeholder="+7 (999) 999-99-99"><div class="checkbox-label"><input type="checkbox" id="phonePublicCheckbox"><label for="phonePublicCheckbox">Показывать мой телефон другим директорам</label></div><div class="form-hint">Если выключено, номер виден только вам и администратору.</div></div>' +
     '<div class="form-group"><label class="form-label">MAX (ссылка или username)</label><input type="text" id="directorMax" placeholder="https://max.ru/username или username"></div>' +
     '<div class="form-group max-link-block" id="maxLinkBlock" hidden>' +
     '<label class="form-label">Уведомления и коды в MAX</label>' +

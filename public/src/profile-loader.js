@@ -30,6 +30,7 @@ export function loadUserDataIntoForms() {
         emailEl.title = 'Email изменяется только администратором';
       }
       document.getElementById('directorPhone').value = profile.phone || '';
+      document.getElementById('phonePublicCheckbox').checked = !!profile.phonePublic;
       document.getElementById('directorMax').value = profile.telegram || '';
       document.getElementById('uniqueExperience').value = profile.experience || '';
       document.getElementById('personalInterests').value = profile.interests || '';

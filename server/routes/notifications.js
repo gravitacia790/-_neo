@@ -26,7 +26,7 @@ router.get('/', authRequired, safe('notifications')(async (req, res) => {
 
   const items = await db
     .prepare(
-      'SELECT id, type, title, message, read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+      'SELECT id, type, title, message, entity_id, read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
     )
     .all(req.user.id, limit, offset);
 
