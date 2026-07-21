@@ -863,6 +863,39 @@ describe('AI search', () => {
   });
 });
 
+describe('AI assistant', () => {
+  it('continues an existing conversation when PostgreSQL returns BIGSERIAL ids as strings', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    const realFetch = global.fetch;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ output_text: 'Тестовый ответ ассистента.' }),
+    });
+
+    try {
+      const first = await apiPost('/api/ai/chat').set('Authorization', `Bearer ${token}`).send({
+        conversationId: null,
+        content: 'Мне пишет родитель, помогите составить ответ.',
+      });
+      expect(first.status).toBe(200);
+      expect(first.body.conversation).toBeTruthy();
+
+      const second = await apiPost('/api/ai/chat').set('Authorization', `Bearer ${token}`).send({
+        conversationId: String(first.body.conversation.id),
+        content: 'Так я написал',
+      });
+      expect(second.status).toBe(200);
+      expect(second.body.message.content).toBe('Тестовый ответ ассистента.');
+    } finally {
+      global.fetch = realFetch;
+      if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+      else delete process.env.OPENAI_API_KEY;
+    }
+  });
+});
+
 describe('Extras', () => {
   it('POST/DELETE /api/extras/:category/:eventId/register — регистрирует и отменяет участника', async () => {
     const reg = await apiPost('/api/extras/gl/gl1/register').set('Authorization', `Bearer ${token}`).send({

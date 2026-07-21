@@ -154,7 +154,11 @@ export var API = (function () {
       return request('GET', '/api/ai/conversations/' + conversationId + '/messages');
     },
     sendAiMessage: function (conversationId, content) {
-      return request('POST', '/api/ai/chat', { conversationId: conversationId || null, content: content });
+      var normalizedConversationId = conversationId ? Number(conversationId) : null;
+      return request('POST', '/api/ai/chat', {
+        conversationId: Number.isFinite(normalizedConversationId) && normalizedConversationId > 0 ? normalizedConversationId : null,
+        content: content,
+      });
     },
     reindexAllAi: function () {
       return request('POST', '/api/ai/reindex-all');

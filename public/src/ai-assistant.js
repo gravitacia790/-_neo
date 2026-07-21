@@ -121,7 +121,7 @@ function loadConversationList(panel, renderId) {
   API.getAiConversations().then(function (data) {
     if (renderId !== assistantRenderId || !document.body.contains(panel)) return;
     var conversations = data.conversations || [];
-    if (!activeConversationId && conversations.length) activeConversationId = conversations[0].id;
+    if (!activeConversationId && conversations.length) activeConversationId = Number(conversations[0].id) || null;
     var options = '<option value="">Новый разговор</option>' + conversations.map(function (item) {
       return '<option value="' + item.id + '">' + String(item.title || 'Разговор').replace(/[&<>"']/g, '') + '</option>';
     }).join('');
@@ -176,7 +176,7 @@ export function renderAiAssistant(container) {
     submit.textContent = 'Думаю...';
     API.sendAiMessage(activeConversationId, content)
       .then(function (response) {
-        activeConversationId = response.conversation && response.conversation.id;
+        activeConversationId = response.conversation ? Number(response.conversation.id) || null : null;
         appendMessage(messages, 'assistant', response.message.content, response.matches || []);
         select.value = activeConversationId || '';
         loadConversationList(panel, renderId);

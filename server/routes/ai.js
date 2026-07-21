@@ -20,6 +20,11 @@ const messageSchema = z.object({
   content: z.string().min(2).max(4000),
 });
 
+const chatSchema = z.object({
+  conversationId: z.coerce.number().int().positive().nullable().optional(),
+  content: z.string().min(2).max(4000),
+});
+
 function parseId(value) {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
@@ -75,8 +80,7 @@ router.post(
   '/chat',
   authRequired,
   safe('ai')(async (req, res) => {
-    const schema = z.object({ conversationId: z.number().int().positive().nullable().optional(), content: z.string().min(2).max(4000) });
-    const parsed = schema.safeParse(req.body || {});
+    const parsed = chatSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: 'Напишите сообщение подробнее' });
     try {
       res.json(await aiAssistantService.sendMessage(req.user, parsed.data.conversationId || null, parsed.data.content));
