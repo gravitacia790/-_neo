@@ -685,7 +685,9 @@ body::before {
   display: none;
   flex-direction: column;
   padding-bottom: 16px;
-  overflow-x: visible;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .main-content.active {
@@ -1163,7 +1165,9 @@ body.nav-sheet-open {
   display: none;
   padding: 24px 20px;
   flex: 1;
-  overflow-x: visible;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .tab-content.active {
@@ -1871,6 +1875,8 @@ body.nav-sheet-open {
 
   #app {
     backdrop-filter: none;
+    width: 100%;
+    min-width: 0;
     max-width: none;
   }
   .header {
@@ -2057,6 +2063,8 @@ body.nav-sheet-open {
   }
   .main-content {
     margin-top: 72px;
+    width: 100%;
+    min-width: 0;
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
     transition: background 0.24s ease, box-shadow 0.24s ease;
   }
@@ -2106,6 +2114,17 @@ body.nav-sheet-open {
   }
   .nav-sheet__subtitle {
     max-width: none;
+  }
+
+  .tab-content,
+  .directors-grid,
+  .ai-assistant-panel,
+  .ai-search-panel,
+  .ai-assistant-messages,
+  .ai-assistant-form {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

@@ -45,11 +45,19 @@ export function getDirectorsCache() {
   return APPSTATE.getDirectors().cache || [];
 }
 
+function setAiPageMode(isAi) {
+  var page = document.getElementById('directors');
+  var list = document.getElementById('directorsList');
+  if (page) page.classList.toggle('ai-page', !!isAi);
+  if (list) list.classList.toggle('ai-directors-mode', !!isAi);
+}
+
 export function renderDirectors(append) {
   directorsState = APPSTATE.getDirectors();
   if (directorsState.segment === 'mentors') return renderMentors();
   if (directorsState.segment === 'favorites') return renderFavoriteDirectors();
   if (directorsState.segment === 'ai') return renderAiDirectors();
+  setAiPageMode(false);
   if (!append) {
     APPSTATE.resetDirectorsPagination();
     directorsState = APPSTATE.getDirectors();
@@ -92,6 +100,7 @@ export function renderDirectors(append) {
 }
 
 export function renderFavoriteDirectors() {
+  setAiPageMode(false);
   var container = document.getElementById('directorsList');
   if (!container) return;
   updateDirectorsHint();
@@ -138,6 +147,7 @@ export function renderFavoriteDirectors() {
 }
 
 export function renderMentors() {
+  setAiPageMode(false);
   var container = document.getElementById('directorsList');
   if (!container) return;
   updateDirectorsHint();
@@ -164,6 +174,7 @@ export function renderMentors() {
 }
 
 export function renderAiDirectors() {
+  setAiPageMode(true);
   var container = document.getElementById('directorsList');
   if (!container) return;
   aiSearchRequestId += 1;

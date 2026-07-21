@@ -181,7 +181,17 @@ export function bindViewportKeyboardAdaptation() {
   // Fallback/extra signal for browsers where visualViewport is noisy.
   function onFocusIn(e) {
     if (!isMobileViewport()) return;
-    if (isKeyboardInputTarget(e.target)) setKeyboardMode(true);
+    if (isKeyboardInputTarget(e.target)) {
+      setKeyboardMode(true);
+      window.setTimeout(function () {
+        if (!isKeyboardInputTarget(document.activeElement)) return;
+        try {
+          document.activeElement.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        } catch (_) {
+          document.activeElement.scrollIntoView(false);
+        }
+      }, 180);
+    }
   }
 
   function onFocusOut() {

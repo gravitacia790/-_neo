@@ -253,6 +253,62 @@
   }
 }
 
+@media (max-width: 767px) {
+  #directors.ai-page {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - 72px - 96px);
+    overflow: hidden;
+  }
+
+  #directors.ai-page .tab-title,
+  #directors.ai-page .director-segments,
+  #directors.ai-page .directors-hint {
+    flex: 0 0 auto;
+  }
+
+  #directorsList.ai-directors-mode {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #directorsList.ai-directors-mode .ai-assistant-panel {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+  }
+
+  #directorsList.ai-directors-mode .ai-assistant-header,
+  #directorsList.ai-directors-mode .ai-assistant-intro,
+  #directorsList.ai-directors-mode .ai-assistant-form {
+    flex: 0 0 auto;
+  }
+
+  #directorsList.ai-directors-mode .ai-assistant-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* На телефоне чат занимает весь AI-экран; быстрый старый поиск не создаёт второй длинный экран. */
+  #directorsList.ai-directors-mode > .ai-search-panel {
+    display: none;
+  }
+
+  #app.keyboard-open #directors.ai-page {
+    min-height: calc(100dvh - 72px - 16px);
+  }
+}
+
 .ai-admin-tools {
   display: flex;
   align-items: center;
