@@ -2,10 +2,72 @@ import { API } from './api.js';
 import { APPSTATE } from './core-state.js';
 import { bindDirectorActions } from './directors-actions.js';
 import { renderDirectorCard } from './directors-ui.js';
-import { html, setHtml } from './html.js';
+import { escapeHtml } from './utils.js';
+import { html, raw, setHtml } from './html.js';
 
 var activeConversationId = null;
 var assistantRenderId = 0;
+
+function formatInlineMarkdown(value) {
+  return String(value || '')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function formatAssistantText(value) {
+  var lines = escapeHtml(value || '').split(/\r?\n/);
+  var output = [];
+  var paragraph = [];
+  var listType = null;
+
+  function closeList() {
+    if (listType) {
+      output.push('</' + listType + '>');
+      listType = null;
+    }
+  }
+
+  function flushParagraph() {
+    if (!paragraph.length) return;
+    output.push('<p>' + formatInlineMarkdown(paragraph.join('<br>')) + '</p>');
+    paragraph = [];
+  }
+
+  lines.forEach(function (line) {
+    var heading = line.match(/^#{1,4}\s+(.+)$/);
+    var bullet = line.match(/^[-*]\s+(.+)$/);
+    var numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      output.push('<h4>' + formatInlineMarkdown(heading[1]) + '</h4>');
+      return;
+    }
+    if (bullet || numbered) {
+      flushParagraph();
+      var nextType = bullet ? 'ul' : 'ol';
+      if (listType !== nextType) {
+        closeList();
+        listType = nextType;
+        output.push('<' + listType + '>');
+      }
+      output.push('<li>' + formatInlineMarkdown((bullet || numbered)[1]) + '</li>');
+      return;
+    }
+    if (!line.trim()) {
+      flushParagraph();
+      closeList();
+      return;
+    }
+    closeList();
+    paragraph.push(line);
+  });
+
+  flushParagraph();
+  closeList();
+  return raw(output.join(''));
+}
 
 function appendMessage(container, role, content, matches) {
   if (!container) return;
@@ -14,7 +76,7 @@ function appendMessage(container, role, content, matches) {
   });
   var message = html`<div class="ai-assistant-message ai-assistant-message--${role}">
     <div class="ai-assistant-message__label">${role === 'user' ? 'Вы' : 'Ассистент'}</div>
-    <div class="ai-assistant-message__body">${content}</div>
+    <div class="ai-assistant-message__body">${formatAssistantText(content)}</div>
     ${cards.length ? html`<div class="ai-assistant-matches"><div class="ai-assistant-matches__title">Нашёл подходящих коллег</div>${cards}</div>` : ''}
   </div>`;
   container.insertAdjacentHTML('beforeend', String(message));
