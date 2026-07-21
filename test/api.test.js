@@ -868,11 +868,17 @@ describe('AI assistant', () => {
     const previousKey = process.env.OPENAI_API_KEY;
     const realFetch = global.fetch;
     process.env.OPENAI_API_KEY = 'test-openai-key';
-    global.fetch = async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ output_text: 'Тестовый ответ ассистента.' }),
-    });
+    global.fetch = async (_url, options) => {
+      const payload = JSON.parse(options.body);
+      expect(payload.max_output_tokens).toBe(700);
+      expect(payload.input).toContain('Работай как наставник');
+      expect(payload.input).toContain('понять логику решения');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ output_text: 'Тестовый ответ ассистента.' }),
+      };
+    };
 
     try {
       const first = await apiPost('/api/ai/chat').set('Authorization', `Bearer ${token}`).send({
@@ -888,6 +894,28 @@ describe('AI assistant', () => {
       });
       expect(second.status).toBe(200);
       expect(second.body.message.content).toBe('Тестовый ответ ассистента.');
+    } finally {
+      global.fetch = realFetch;
+      if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+      else delete process.env.OPENAI_API_KEY;
+    }
+  });
+
+  it('returns a readable error when the OpenAI request cannot be completed', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    const realFetch = global.fetch;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    global.fetch = async () => {
+      throw new Error('fetch failed');
+    };
+
+    try {
+      const res = await apiPost('/api/ai/chat').set('Authorization', `Bearer ${token}`).send({
+        conversationId: null,
+        content: 'Помогите составить план встречи с родителями.',
+      });
+      expect(res.status).toBe(503);
+      expect(res.body.error).toContain('Не удалось связаться с AI-ассистентом');
     } finally {
       global.fetch = realFetch;
       if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;

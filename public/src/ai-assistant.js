@@ -8,6 +8,14 @@ import { html, raw, setHtml } from './html.js';
 var activeConversationId = null;
 var assistantRenderId = 0;
 
+function scrollMessagesToBottom(container) {
+  if (!container) return;
+  container.scrollTop = container.scrollHeight;
+  window.requestAnimationFrame(function () {
+    container.scrollTop = container.scrollHeight;
+  });
+}
+
 function formatInlineMarkdown(value) {
   return String(value || '')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -84,7 +92,7 @@ function appendMessage(container, role, content, matches) {
     APPSTATE.setDirectorsCache(matches.map(function (item) { return item.director; }));
     bindDirectorActions(container);
   }
-  container.scrollTop = container.scrollHeight;
+  scrollMessagesToBottom(container);
 }
 
 function renderWelcome(container) {
@@ -115,7 +123,7 @@ function loadConversation(panel, conversationId, renderId) {
   });
 }
 
-function loadConversationList(panel, renderId) {
+function loadConversationList(panel, renderId, reloadActiveConversation) {
   var select = panel.querySelector('#aiAssistantConversation');
   if (!select) return;
   API.getAiConversations().then(function (data) {
@@ -127,7 +135,9 @@ function loadConversationList(panel, renderId) {
     }).join('');
     select.innerHTML = options;
     select.value = activeConversationId || '';
-    if (activeConversationId) loadConversation(panel, activeConversationId, renderId).catch(function (error) { showError(panel.querySelector('#aiAssistantMessages'), error); });
+    if (reloadActiveConversation !== false && activeConversationId) {
+      loadConversation(panel, activeConversationId, renderId).catch(function (error) { showError(panel.querySelector('#aiAssistantMessages'), error); });
+    }
   }).catch(function () {
     // A new conversation can still be started if history is temporarily unavailable.
   });
@@ -179,7 +189,7 @@ export function renderAiAssistant(container) {
         activeConversationId = response.conversation ? Number(response.conversation.id) || null : null;
         appendMessage(messages, 'assistant', response.message.content, response.matches || []);
         select.value = activeConversationId || '';
-        loadConversationList(panel, renderId);
+        loadConversationList(panel, renderId, false);
       })
       .catch(function (error) { showError(messages, error); })
       .finally(function () {

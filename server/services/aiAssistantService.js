@@ -22,14 +22,23 @@ async function requestOpenAi(payload) {
     throw error;
   }
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch (cause) {
+    logger.warn('ai.assistant_openai_unreachable', { message: cause && cause.message ? cause.message : String(cause) });
+    const error = new Error('Не удалось связаться с AI-ассистентом. Проверьте подключение и попробуйте ещё раз.');
+    error.status = 503;
+    throw error;
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error((data.error && data.error.message) || 'AI-ассистент временно недоступен.');
@@ -188,8 +197,11 @@ async function sendMessage(user, conversationId, content) {
   const prompt = [
     'Ты персональный AI-ассистент директора школы.',
     'Отвечай на русском языке, спокойно, практично и без выдуманных фактов.',
-    'Помогай разобраться в ситуации, задавай уточняющие вопросы, если без них нельзя дать хороший совет.',
-    'Предлагай конкретные шаги, риски и критерии результата.',
+    'Работай как наставник: не ограничивайся коротким советом, а помогай директору понять логику решения и развивать управленческие навыки.',
+    'Если контекста достаточно, не проси повторно описать ситуацию — дай рабочий ответ и укажи, какие детали можно уточнить для следующего шага.',
+    'Строй ответ так: кратко объясни суть ситуации; предложи последовательный план действий; поясни, почему эти шаги важны; при необходимости дай готовую формулировку для разговора, письма или документа; назови риски и критерии результата.',
+    'Пиши достаточно развёрнуто для обучения, но используй понятные заголовки и списки, чтобы ответ было удобно читать с телефона.',
+    'В конце предложи один осмысленный следующий шаг или вопрос, который поможет двигаться дальше.',
     'Не принимай кадровые решения самостоятельно и не выдавай предположения за факты.',
     'Если ниже приведены найденные коллеги, используй только эти данные и предложи директору самому решить, связываться ли с ними.',
     '\nКонтекст директора и школы:\n' + (schoolContext || 'Контекст школы пока не заполнен.'),
@@ -198,7 +210,7 @@ async function sendMessage(user, conversationId, content) {
     '\nОтветь на последнее сообщение директора:\n' + message,
   ].join('\n');
 
-  const data = await requestOpenAi({ model: ANSWER_MODEL, input: prompt });
+  const data = await requestOpenAi({ model: ANSWER_MODEL, input: prompt, max_output_tokens: 700 });
   const answer = getOutputText(data) || 'Не удалось получить ответ. Попробуйте сформулировать ситуацию иначе.';
   const metadata = { matches: matches.map((item) => item.director), searchPerformed: shouldSearchForColleagues(message) };
   const inserted = await db

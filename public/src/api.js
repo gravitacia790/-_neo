@@ -47,7 +47,12 @@ export var API = (function () {
         opts.body = JSON.stringify(body);
       }
     }
-    return fetch(url, opts).then(function (res) {
+    return fetch(url, opts).catch(function (cause) {
+      var err = new Error('Не удалось подключиться к серверу. Проверьте интернет и попробуйте ещё раз.');
+      err.status = 0;
+      err.cause = cause;
+      throw err;
+    }).then(function (res) {
       var ct = res.headers.get('content-type') || '';
       var isJson = ct.indexOf('application/json') !== -1;
       var p = isJson ? res.json() : res.text();

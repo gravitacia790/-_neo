@@ -185,6 +185,12 @@ export function bindViewportKeyboardAdaptation() {
       setKeyboardMode(true);
       window.setTimeout(function () {
         if (!isKeyboardInputTarget(document.activeElement)) return;
+        if (document.activeElement && document.activeElement.id === 'aiAssistantInput') {
+          var panel = document.activeElement.closest('.ai-assistant-panel');
+          var messages = panel && panel.querySelector('.ai-assistant-messages');
+          if (messages) messages.scrollTop = messages.scrollHeight;
+          return;
+        }
         try {
           document.activeElement.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
         } catch (_) {
