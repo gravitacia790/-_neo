@@ -4,6 +4,7 @@ import { APPSTATE } from './core-state.js';
 import { bindDirectorActions } from './directors-actions.js';
 import { renderDirectorCard, renderDirectorsState } from './directors-ui.js';
 import { html, setHtml } from './html.js';
+import { renderAiAssistant } from './ai-assistant.js';
 export var DIRECTOR_SEGMENT_KEY = 'directors.segment';
 export var DIRECTOR_FAVORITES_SORT_KEY = 'directors.favorites.sort';
 export var directorsState = APPSTATE.getDirectors();
@@ -184,6 +185,7 @@ export function renderAiDirectors() {
       <div id="aiDirectorResults" class="ai-search-results"></div>
     </div>`
   );
+  renderAiAssistant(container);
 
   var form = document.getElementById('aiDirectorSearchForm');
   var textarea = document.getElementById('aiDirectorQuery');

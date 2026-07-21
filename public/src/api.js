@@ -147,6 +147,15 @@ export var API = (function () {
     searchAiDirectors: function (query) {
       return request('POST', '/api/ai/search', { query: query });
     },
+    getAiConversations: function () {
+      return request('GET', '/api/ai/conversations');
+    },
+    getAiMessages: function (conversationId) {
+      return request('GET', '/api/ai/conversations/' + conversationId + '/messages');
+    },
+    sendAiMessage: function (conversationId, content) {
+      return request('POST', '/api/ai/chat', { conversationId: conversationId || null, content: content });
+    },
     reindexAllAi: function () {
       return request('POST', '/api/ai/reindex-all');
     },
