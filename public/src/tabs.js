@@ -6,6 +6,7 @@ import { renderCalendar, renderGL, renderInternship } from './extras.js';
 import { updateProfileRatingDisplay } from './profile-ui.js';
 import { isAdmin } from './utils.js';
 import { renderExpertView } from './views-expert.js';
+import { renderDevelopmentView } from './views-development.js';
 let switchTabRef = null;
 export function switchAppTab(tabId, options) {
   if (typeof switchTabRef === 'function') return switchTabRef(tabId, options);
@@ -15,6 +16,7 @@ export function initTabs() {
   var scrollMemory = {};
   var tabRegistry = [
     { id: 'profile', navGroup: 'more', render: updateProfileRatingDisplay },
+    { id: 'development', navGroup: 'more', render: renderDevelopmentView },
     { id: 'school', navGroup: 'more' },
     { id: 'events', navGroup: 'more', render: renderEvents },
     { id: 'directors', navGroup: 'primary', render: renderDirectors },

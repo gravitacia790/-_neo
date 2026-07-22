@@ -169,6 +169,25 @@ export var API = (function () {
       return request('POST', '/api/ai/reindex-all');
     },
 
+    getDevelopmentDashboard: function () {
+      return request('GET', '/api/development');
+    },
+    createDevelopmentTrack: function (data) {
+      return request('POST', '/api/development/tracks', data);
+    },
+    createDevelopmentAiPlan: function (requestText) {
+      return request('POST', '/api/development/ai-plan', { request: requestText });
+    },
+    addDevelopmentAction: function (trackId, data) {
+      return request('POST', '/api/development/tracks/' + trackId + '/actions', data);
+    },
+    updateDevelopmentAction: function (actionId, status) {
+      return request('PATCH', '/api/development/actions/' + actionId, { status: status });
+    },
+    addDevelopmentReflection: function (trackId, content, actionId) {
+      return request('POST', '/api/development/tracks/' + trackId + '/reflections', { content: content, actionId: actionId || null });
+    },
+
     getEvents: function (page, limit) {
       var params = [];
       if (page) params.push('page=' + page);

@@ -27,6 +27,7 @@ import './views-school.js';
 import './views-events.js';
 import './views-directors.js';
 import './views-expert.js';
+import './views-development.js';
 import './views.js';
 import './tabs.js';
 import './extras.js';
