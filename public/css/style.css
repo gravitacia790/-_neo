@@ -2305,3 +2305,42 @@ body.nav-sheet-open {
 .inline-error {
   color: #ff8;
 }
+
+/* Personal development track */
+.development-view { max-width: 960px; margin: 0 auto; padding: 28px 0 48px; }
+.development-hero, .development-create, .development-track, .development-reflections { background: rgba(255,255,255,.92); border: 1px solid var(--border-light); border-radius: 22px; box-shadow: 0 12px 32px rgba(28,26,40,.06); padding: 22px; margin-bottom: 18px; }
+.development-hero { background: linear-gradient(135deg, rgba(184,149,58,.15), rgba(255,255,255,.96) 52%, rgba(137,33,42,.06)); }
+.development-eyebrow { color: var(--accent, #89212a); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.development-hero h2 { margin: 6px 0 8px; font-family: 'Playfair Display', serif; font-size: clamp(1.75rem, 4vw, 2.35rem); }
+.development-hero p, .development-track__focus, .development-outcome p { color: var(--text-secondary); margin: 0; line-height: 1.55; }
+.development-create h3, .development-tracks > h3, .development-reflections h3 { margin: 0 0 14px; }
+.development-create label, .development-reflection-form label, .development-manual label { display: grid; gap: 7px; font-weight: 700; font-size: .88rem; }
+.development-create textarea, .development-reflection-form textarea, .development-manual textarea, .development-manual input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-light); border-radius: 12px; padding: 10px 12px; font: inherit; background: #fff; resize: vertical; }
+.development-create button { margin-top: 12px; }
+.development-manual { margin-top: 16px; }
+.development-manual summary { cursor: pointer; font-weight: 700; color: var(--accent, #89212a); }
+.development-manual form { display: grid; gap: 12px; margin-top: 14px; max-width: 620px; }
+.development-track__top { display: flex; gap: 18px; justify-content: space-between; align-items: flex-start; }
+.development-track h3 { margin: 5px 0 6px; font-size: 1.25rem; }
+.development-progress { min-width: 68px; text-align: right; color: var(--text-secondary); }
+.development-progress strong { display: block; color: var(--accent, #89212a); font-size: 1.3rem; }
+.development-progress span { font-size: .72rem; }
+.development-outcome { border-left: 3px solid #b8953a; padding: 9px 0 9px 12px; margin: 17px 0; }
+.development-outcome span, .development-action__week { display: block; color: var(--text-secondary); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.development-progressbar { height: 8px; background: #eee9dd; border-radius: 99px; overflow: hidden; margin: 16px 0; }
+.development-progressbar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #89212a, #b8953a); transition: width .25s ease; }
+.development-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.development-action { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 13px; border-radius: 14px; background: #faf9f5; border: 1px solid var(--border-light); }
+.development-action strong { display: block; margin-top: 2px; }
+.development-action p { margin: 5px 0 0; color: var(--text-secondary); font-size: .88rem; line-height: 1.45; }
+.development-action--done { opacity: .68; }
+.development-action--done strong { text-decoration: line-through; }
+.development-action__toggle { flex: 0 0 auto; border: 1px solid rgba(137,33,42,.25); background: white; color: #79212b; border-radius: 9px; padding: 8px 10px; font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+.development-reflection-form { display: grid; gap: 10px; margin-top: 16px; }
+.development-reflection-form .ghost-btn { justify-self: start; }
+.development-empty { padding: 24px; text-align: center; border: 1px dashed rgba(137,33,42,.28); border-radius: 16px; color: var(--text-secondary); background: rgba(255,255,255,.55); }
+.development-reflections ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.development-reflections li { padding: 12px; border-radius: 12px; background: #faf9f5; }
+.development-reflections p { margin: 5px 0; line-height: 1.45; }
+.development-reflections span { color: var(--text-secondary); font-size: .78rem; }
+@media (max-width: 600px) { .development-view { padding-top: 16px; } .development-hero, .development-create, .development-track, .development-reflections { padding: 16px; border-radius: 18px; } .development-action { align-items: flex-start; } .development-action__toggle { margin-top: 3px; } }

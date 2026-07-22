@@ -1336,6 +1336,63 @@ describe('WebSocket', () => {
   });
 });
 
+describe('Development tracks', () => {
+  it('создаёт личный трек, практику и рефлексию только для текущего директора', async () => {
+    const initial = await apiGet('/api/development').set('Authorization', `Bearer ${token}`);
+    expect(initial.status).toBe(200);
+
+    const created = await apiPost('/api/development/tracks')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Сложные разговоры с коллективом', outcome: 'Провожу разговоры спокойно и с понятным следующим шагом.' });
+    expect(created.status).toBe(201);
+    expect(created.body.track.title).toBe('Сложные разговоры с коллективом');
+
+    const trackId = created.body.track.id;
+    const action = await apiPost('/api/development/tracks/' + trackId + '/actions')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Подготовить сценарий разговора', description: 'Собрать факты, цель и два вопроса.', weekNumber: 1 });
+    expect(action.status).toBe(201);
+    expect(action.body.track.actions).toHaveLength(1);
+
+    const actionId = action.body.track.actions[0].id;
+    const completed = await agent
+      .patch('/api/development/actions/' + actionId)
+      .set('X-CSRF-Token', csrfToken)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'completed' });
+    expect(completed.status).toBe(200);
+    expect(completed.body.track.progress).toBe(100);
+
+    const reflection = await apiPost('/api/development/tracks/' + trackId + '/reflections')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ content: 'Подготовка помогла не уходить в эмоции и завершить разговор конкретной договорённостью.', actionId });
+    expect(reflection.status).toBe(201);
+    expect(reflection.body.reflections[0].trackId).toBe(trackId);
+  });
+
+  it('не позволяет изменять практику другого директора', async () => {
+    const foreign = await db
+      .prepare(
+        `INSERT INTO users (email, password_hash, name, role, approval_status)
+         VALUES (?, ?, ?, 'director', 'approved') RETURNING id`
+      )
+      .run('development-foreign@school.ru', 'not-a-real-login-hash', 'Foreign Director');
+    const foreignTrack = await db
+      .prepare("INSERT INTO development_tracks (user_id, title) VALUES (?, ?) RETURNING id")
+      .run(foreign.lastInsertRowid, 'Чужой трек');
+    const foreignAction = await db
+      .prepare("INSERT INTO development_actions (track_id, title) VALUES (?, ?) RETURNING id")
+      .run(foreignTrack.lastInsertRowid, 'Чужая практика');
+
+    const res = await agent
+      .patch('/api/development/actions/' + foreignAction.lastInsertRowid)
+      .set('X-CSRF-Token', csrfToken)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'completed' });
+    expect(res.status).toBe(404);
+  });
+});
+
 afterAll(async () => {
   if (httpServer) {
     httpServer.close();

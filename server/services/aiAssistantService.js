@@ -95,6 +95,32 @@ function shouldSearchForColleagues(message) {
   return /(найд|подбер|порекоменду|коллег|директор|опыт.*помо|кто.*помоч|с кем.*обсуд|похож.*практи)/i.test(text);
 }
 
+async function loadDevelopmentContext(userId) {
+  const tracks = await db
+    .prepare(
+      `SELECT id, title, focus_area, outcome
+       FROM development_tracks
+       WHERE user_id = ? AND status = 'active'
+       ORDER BY updated_at DESC, id DESC
+       LIMIT 2`
+    )
+    .all(userId);
+  if (!tracks.length) return '';
+  const lines = [];
+  for (const track of tracks) {
+    const actions = await db
+      .prepare('SELECT title, status, week_number FROM development_actions WHERE track_id = ? ORDER BY week_number, id')
+      .all(track.id);
+    lines.push(
+      `Трек развития: ${track.title}\n` +
+        `Фокус: ${track.focus_area || ''}\n` +
+        `Результат: ${track.outcome || ''}\n` +
+        `Практики: ${actions.map((item) => `${item.week_number}. ${item.title} — ${item.status === 'completed' ? 'выполнено' : 'запланировано'}`).join('; ')}`
+    );
+  }
+  return lines.join('\n\n');
+}
+
 async function getConversation(userId, conversationId) {
   if (!conversationId) return null;
   return db.prepare('SELECT id, user_id, title, created_at, updated_at FROM ai_conversations WHERE id = ? AND user_id = ?').get(conversationId, userId);
@@ -192,7 +218,7 @@ async function sendMessage(user, conversationId, content) {
     }
   }
 
-  const schoolContext = await loadSchoolContext(user.id);
+  const [schoolContext, developmentContext] = await Promise.all([loadSchoolContext(user.id), loadDevelopmentContext(user.id)]);
   const historyText = history.map((item) => `${item.role === 'user' ? 'Директор' : 'Ассистент'}: ${item.content}`).join('\n');
   const prompt = [
     'Ты персональный AI-ассистент директора школы.',
@@ -205,6 +231,7 @@ async function sendMessage(user, conversationId, content) {
     'Не принимай кадровые решения самостоятельно и не выдавай предположения за факты.',
     'Если ниже приведены найденные коллеги, используй только эти данные и предложи директору самому решить, связываться ли с ними.',
     '\nКонтекст директора и школы:\n' + (schoolContext || 'Контекст школы пока не заполнен.'),
+    developmentContext ? '\nАктивный трек профессионального развития:\n' + developmentContext : '',
     '\nИстория разговора:\n' + (historyText || 'Это начало разговора.'),
     searchNote,
     '\nОтветь на последнее сообщение директора:\n' + message,
