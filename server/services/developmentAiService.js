@@ -5,7 +5,12 @@ const MODEL = process.env.OPENAI_ANSWER_MODEL || 'gpt-5.4-mini';
 
 function getOutputText(data) {
   if (data && typeof data.output_text === 'string') return data.output_text.trim();
-  return '';
+  if (!data || !Array.isArray(data.output)) return '';
+  return data.output
+    .flatMap((item) => (Array.isArray(item.content) ? item.content : []))
+    .map((item) => item.text || '')
+    .join('')
+    .trim();
 }
 
 async function loadContext(userId) {
@@ -107,7 +112,7 @@ async function generatePlan(user, request) {
   const plan = parsePlan(getOutputText(data));
   if (!plan) {
     const error = new Error('Не удалось подготовить понятный трек. Сформулируйте цель немного конкретнее.');
-    error.status = 502;
+    error.status = 422;
     throw error;
   }
   return plan;

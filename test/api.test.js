@@ -1348,16 +1348,20 @@ describe('Development tracks', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          output_text: JSON.stringify({
-            title: 'Стратегическое планирование',
-            focusArea: 'Планирование развития школы',
-            outcome: 'Есть согласованный план на учебный период.',
-            actions: [
-              { title: 'Собрать исходные данные', description: 'Выделить ключевые показатели.', weekNumber: 1 },
-              { title: 'Обсудить приоритеты', description: 'Провести встречу с командой.', weekNumber: 2 },
-              { title: 'Сформировать план', description: 'Зафиксировать решения.', weekNumber: 3 },
-            ],
-          }),
+          output: [{
+            content: [{
+              text: JSON.stringify({
+                title: 'Стратегическое планирование',
+                focusArea: 'Планирование развития школы',
+                outcome: 'Есть согласованный план на учебный период.',
+                actions: [
+                  { title: 'Собрать исходные данные', description: 'Выделить ключевые показатели.', weekNumber: 1 },
+                  { title: 'Обсудить приоритеты', description: 'Провести встречу с командой.', weekNumber: 2 },
+                  { title: 'Сформировать план', description: 'Зафиксировать решения.', weekNumber: 3 },
+                ],
+              }),
+            }],
+          }],
         }),
       };
     };
