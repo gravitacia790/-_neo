@@ -26,7 +26,11 @@ function safe(prefix) {
     } catch (err) {
       logger.error('route.unhandled_error', { label, method: req.method, path: req.path, message: err.message });
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+        const status = Number(err.status);
+        const clientError = status >= 400 && status < 500;
+        res.status(clientError || status >= 500 ? status : 500).json({
+          error: clientError && err.message ? err.message : 'Внутренняя ошибка сервера',
+        });
       }
     }
   };

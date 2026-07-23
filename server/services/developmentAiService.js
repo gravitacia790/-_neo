@@ -1,4 +1,5 @@
 const { db } = require('../db');
+const logger = require('../logger');
 
 const MODEL = process.env.OPENAI_ANSWER_MODEL || 'gpt-5.4-mini';
 
@@ -80,7 +81,6 @@ async function generatePlan(user, request) {
           context +
           '\n\nЗапрос директора:\n' +
           request,
-        temperature: 0.4,
       }),
       signal: AbortSignal.timeout(30000),
     });
@@ -91,7 +91,16 @@ async function generatePlan(user, request) {
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error((data.error && data.error.message) || 'AI-наставник временно недоступен.');
+    logger.warn('development.ai_plan_failed', {
+      status: response.status,
+      code: data && data.error && data.error.code ? data.error.code : undefined,
+      type: data && data.error && data.error.type ? data.error.type : undefined,
+    });
+    const error = new Error(
+      response.status === 401
+        ? 'AI-наставник не авторизован. Проверьте ключ OpenAI на сервере.'
+        : 'AI-наставник временно недоступен. Попробуйте ещё раз немного позже.'
+    );
     error.status = response.status >= 500 ? 503 : 400;
     throw error;
   }

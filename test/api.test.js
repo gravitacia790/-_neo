@@ -1337,6 +1337,44 @@ describe('WebSocket', () => {
 });
 
 describe('Development tracks', () => {
+  it('создаёт AI-трек через совместимый запрос Responses API', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    const originalFetch = global.fetch;
+    let requestBody;
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    global.fetch = async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          output_text: JSON.stringify({
+            title: 'Стратегическое планирование',
+            focusArea: 'Планирование развития школы',
+            outcome: 'Есть согласованный план на учебный период.',
+            actions: [
+              { title: 'Собрать исходные данные', description: 'Выделить ключевые показатели.', weekNumber: 1 },
+              { title: 'Обсудить приоритеты', description: 'Провести встречу с командой.', weekNumber: 2 },
+              { title: 'Сформировать план', description: 'Зафиксировать решения.', weekNumber: 3 },
+            ],
+          }),
+        }),
+      };
+    };
+    try {
+      const res = await apiPost('/api/development/ai-plan')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ request: 'Хочу улучшить стратегическое планирование школы.' });
+      expect(res.status).toBe(201);
+      expect(res.body.track.actions).toHaveLength(3);
+      expect(requestBody.temperature).toBeUndefined();
+    } finally {
+      global.fetch = originalFetch;
+      if (previousKey !== undefined) process.env.OPENAI_API_KEY = previousKey;
+      else delete process.env.OPENAI_API_KEY;
+    }
+  });
+
   it('создаёт личный трек, практику и рефлексию только для текущего директора', async () => {
     const initial = await apiGet('/api/development').set('Authorization', `Bearer ${token}`);
     expect(initial.status).toBe(200);
